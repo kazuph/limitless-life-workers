@@ -15,7 +15,7 @@ def get_lifelogs(api_key, api_url=os.getenv("LIMITLESS_API_URL") or "https://api
         params = {  
             "limit": batch_size,
             "includeMarkdown": "true" if includeMarkdown else "false",
-            "includeHeadings": "false" if includeHeadings else "true",
+            "includeHeadings": "true" if includeHeadings else "false",
             "date": date,
             "direction": direction,
             "timezone": timezone if timezone else str(tzlocal.get_localzone())
