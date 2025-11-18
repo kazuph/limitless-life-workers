@@ -1,4 +1,4 @@
-import type { Ai } from '@cloudflare/workers-types/experimental'
+import type { Ai, RateLimit } from '@cloudflare/workers-types/experimental'
 import type { Database } from './db/client'
 
 export type Bindings = {
@@ -7,6 +7,7 @@ export type Bindings = {
   BASIC_USER: string
   BASIC_PASS: string
   AI: Ai
+  RATE_LIMITER?: RateLimit
   DISABLE_LIMITLESS_SYNC?: string
   DISABLE_WORKERS_AI?: string
 }
