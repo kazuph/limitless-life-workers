@@ -2,5 +2,19 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "life-log-app",
   "compatibility_date": "2025-08-03",
-  "main": "./src/index.tsx"
+  "main": "./src/index.tsx",
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "LIFELOG_DB",
+      "database_name": "life_log_app",
+      "database_id": "replace-with-your-d1-id"
+    }
+  ],
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  }
 }
