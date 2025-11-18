@@ -47,6 +47,16 @@ app.use('*', async (c, next) => {
   await next()
 })
 
+// robots.txt - Disallow all crawlers (must be before auth middleware)
+app.get('/robots.txt', (c) => {
+  return c.text(
+    `User-agent: *
+Disallow: /`,
+    200,
+    { 'Content-Type': 'text/plain' }
+  )
+})
+
 app.use('*', withDb())
 app.use(
   '*',
@@ -68,16 +78,6 @@ app.use(
       c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Basic realm="life-log-app"' })
   })
 )
-
-// robots.txt - Disallow all crawlers
-app.get('/robots.txt', (c) => {
-  return c.text(
-    `User-agent: *
-Disallow: /`,
-    200,
-    { 'Content-Type': 'text/plain' }
-  )
-})
 
 app.get('/api/health', async (c) => {
   const db = c.get('db')
