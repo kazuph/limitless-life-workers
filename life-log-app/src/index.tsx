@@ -31,6 +31,11 @@ app.use(
   basicAuth({
     verifyUser: async (username, password, c) => {
       const { BASIC_USER, BASIC_PASS } = c.env
+      // Skip basic auth in development if accessing via localhost
+      const host = c.req.header('host') || ''
+      if (host.includes('localhost') || host.includes('127.0.0.1')) {
+        return true
+      }
       if (!BASIC_USER || !BASIC_PASS) {
         console.warn('Basic auth credentials missing in environment')
         return true
@@ -58,8 +63,11 @@ app.get('/api/health', async (c) => {
 app.get('/api/lifelogs', async (c) => {
   await ensureFreshData(c)
   const db = c.get('db')
+  const days = parseInt(c.req.query('days') || '7', 10)
+  const offset = parseInt(c.req.query('offset') || '0', 10)
+
   const [timelineEntries, lastSyncedAt, lastAnalyzedAt] = await Promise.all([
-    getTimelineSnapshot(db, { limit: 50 }),
+    getTimelineSnapshot(db, { days, offset }),
     getLastSyncedAt(db),
     getLastAnalyzedAt(db)
   ])
@@ -181,16 +189,35 @@ const ensureFreshData = async (c: Context<Env>) => {
     const needsBootstrap = !lastSyncedAt || count === 0
 
     if (needsBootstrap) {
-      await syncLifelogs(db, c.env, { fullRefresh: true })
-      // Analyze entries gradually to avoid rate limits
-      c.executionCtx.waitUntil(analyzeFreshEntries(db, c.env, { limit: 5 }))
-    } else if (isStale(lastSyncedAt, 60)) {
+      // Try to sync, but don't block page rendering if it fails
+      // Use incremental sync instead of fullRefresh to avoid excessive API calls
+      try {
+        await syncLifelogs(db, c.env, { fullRefresh: false })
+      } catch (error) {
+        console.error('Bootstrap sync failed, but continuing with existing D1 data:', error)
+      }
+      // Analyze entries gradually to avoid rate limits (reduced from 5 to 3)
       c.executionCtx.waitUntil(
-        syncLifelogs(db, c.env).then(() => analyzeFreshEntries(db, c.env, { limit: 3 }))
+        analyzeFreshEntries(db, c.env, { limit: 3 }).catch(error => {
+          console.error('Background analysis failed:', error)
+        })
+      )
+    } else if (isStale(lastSyncedAt, 60)) {
+      // Background sync and analysis - errors won't affect page rendering
+      c.executionCtx.waitUntil(
+        syncLifelogs(db, c.env)
+          .then(() => analyzeFreshEntries(db, c.env, { limit: 2 }))
+          .catch(error => {
+            console.error('Background sync/analysis failed:', error)
+          })
       )
     } else {
       // Even if sync is fresh, analyze any entries that need it
-      c.executionCtx.waitUntil(analyzeFreshEntries(db, c.env, { limit: 2 }))
+      c.executionCtx.waitUntil(
+        analyzeFreshEntries(db, c.env, { limit: 1 }).catch(error => {
+          console.error('Background analysis failed:', error)
+        })
+      )
     }
   }
 

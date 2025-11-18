@@ -12,10 +12,13 @@ export const toLocaleTime = (value?: string | null) => {
 
 export const formatDateLabel = (value?: string | null) => {
   if (!value) return 'Unknown date'
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    weekday: 'short'
-  })
-  return formatter.format(new Date(value))
+  const date = new Date(value)
+
+  // Format: 2025-11-18 (月)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const weekday = date.toLocaleDateString('ja-JP', { weekday: 'short' })
+
+  return `${year}-${month}-${day} (${weekday})`
 }

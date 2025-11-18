@@ -1,9 +1,11 @@
 /** @jsxImportSource hono/jsx */
 import { raw } from 'hono/html'
 import { jsxRenderer } from 'hono/jsx-renderer'
-import { ViteClient } from 'vite-ssr-components/hono'
+import { Script, ViteClient } from 'vite-ssr-components/hono'
 
 export const renderer = jsxRenderer(({ children }) => {
+  const isDev = Boolean(import.meta.env?.DEV)
+
   return (
     <html>
       <head>
@@ -11,7 +13,7 @@ export const renderer = jsxRenderer(({ children }) => {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Limitless Life Log</title>
         <ViteClient />
-        {import.meta.env?.DEV && (
+        {isDev && (
           <script type="module">
             {raw(`
               import RefreshRuntime from "/@react-refresh"
@@ -22,7 +24,7 @@ export const renderer = jsxRenderer(({ children }) => {
             `)}
           </script>
         )}
-        <script type="module" src="/src/client/main.tsx" />
+        <Script src="/src/client/main.tsx" />
       </head>
       <body class="bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
         {children}

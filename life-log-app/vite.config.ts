@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 import ssrPlugin from 'vite-ssr-components/plugin'
 import { fileURLToPath, URL } from 'node:url'
 
-export default defineConfig({
+export default defineConfig(({ mode, isSsrBuild }) => ({
   appType: 'custom',
   plugins: [cloudflare(), ssrPlugin(), react()],
   resolve: {
@@ -17,8 +17,20 @@ export default defineConfig({
     strictPort: true
   },
   build: {
+    manifest: true,
     rollupOptions: {
-      input: './src/index.tsx'
+      input: isSsrBuild ? './src/index.tsx' : './src/client/main.tsx',
+      output: !isSsrBuild ? {
+        entryFileNames: 'assets/main.js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: (assetInfo) => {
+          // Fixed filename for main CSS
+          if (assetInfo.name === 'main.css' || assetInfo.name?.endsWith('main.css')) {
+            return 'assets/main.css'
+          }
+          return 'assets/[name]-[hash][extname]'
+        }
+      } : undefined
     }
   }
-})
+}))

@@ -217,7 +217,7 @@ export const analyzeFreshEntries = async (
 
     // Add delay between requests to avoid rate limits (except for first request)
     if (i > 0) {
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise(resolve => setTimeout(resolve, 5000))
     }
     const segments = await db
       .select({
