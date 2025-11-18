@@ -3,6 +3,9 @@
   "name": "life-log-app",
   "compatibility_date": "2025-08-03",
   "main": "./src/index.tsx",
+  "assets": {
+    "directory": "./dist/client"
+  },
   "triggers": {
     "crons": ["0 * * * *"]
   },
@@ -10,7 +13,7 @@
     {
       "binding": "LIFELOG_DB",
       "database_name": "life_log_app",
-      "database_id": "replace-with-your-d1-id"
+      "database_id": "000125fa-0e2e-4a37-9100-706a4677f57b"
     }
   ],
   "ai": {

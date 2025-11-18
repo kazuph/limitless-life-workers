@@ -36,3 +36,7 @@ lerna-debug.log*
 # test
 test-results/
 playwright-report/
+timeline-*.png
+verify-timeline.mjs
+check-timeline.mjs
+test-scroll.mjs

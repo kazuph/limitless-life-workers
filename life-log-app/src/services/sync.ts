@@ -34,7 +34,17 @@ export const syncLifelogs = async (
   let processed = 0
   let lastUpdatedAt: string | null = null
   let attempted = false
-  const since = opts.fullRefresh ? null : await getSyncStateValue(db, LAST_UPDATED_KEY)
+  const storedSince = await getSyncStateValue(db, LAST_UPDATED_KEY)
+
+  // Determine the starting point for sync
+  // - fullRefresh: fetch all data (since = null)
+  // - has storedSince: fetch from backfillWindow (6 hours before last sync)
+  // - no storedSince: fetch last 7 days only to avoid excessive API calls on first run
+  const since = opts.fullRefresh
+    ? null
+    : storedSince
+      ? storedSince
+      : getDefaultStartDate()
 
   do {
     attempted = true
@@ -110,6 +120,13 @@ const backfillWindow = (since: string) => {
     return start.toISOString()
   }
   return undefined
+}
+
+const getDefaultStartDate = () => {
+  // Default to last 7 days on first sync to avoid excessive API calls
+  const start = new Date()
+  start.setDate(start.getDate() - 7)
+  return start.toISOString()
 }
 
 const chunkArray = <T>(values: T[], chunkSize: number): T[][] => {

@@ -1,4 +1,4 @@
-import { desc, inArray } from 'drizzle-orm'
+import { desc, inArray, sql } from 'drizzle-orm'
 import type { Database } from '../db/client'
 import {
   lifelogAnalyses,
@@ -30,9 +30,18 @@ export type TimelineEntryDTO = {
 
 export const getTimelineSnapshot = async (
   db: Database,
-  opts: { limit?: number } = {}
+  opts: { days?: number; offset?: number } = {}
 ): Promise<TimelineEntryDTO[]> => {
-  const limit = opts.limit ?? 14
+  const days = opts.days ?? 7
+  const offset = opts.offset ?? 0
+
+  // Calculate date range
+  const now = new Date()
+  const startDate = new Date(now)
+  startDate.setDate(startDate.getDate() - (days + offset))
+  const endDate = new Date(now)
+  endDate.setDate(endDate.getDate() - offset)
+
   const entries = await db
     .select({
       id: lifelogEntries.id,
@@ -42,8 +51,8 @@ export const getTimelineSnapshot = async (
       markdown: lifelogEntries.markdown
     })
     .from(lifelogEntries)
+    .where(sql`${lifelogEntries.startTime} >= ${startDate.toISOString()} AND ${lifelogEntries.startTime} < ${endDate.toISOString()}`)
     .orderBy(desc(lifelogEntries.startTime))
-    .limit(limit)
 
   if (!entries.length) {
     return []
@@ -99,13 +108,21 @@ export const getTimelineSnapshot = async (
       title: entry.title ?? 'Untitled',
       startTime: entry.startTime ?? null,
       endTime: entry.endTime ?? null,
-      dateLabel: entry.startTime ? entry.startTime.split('T')[0] : null,
+      dateLabel: entry.startTime ? formatLocalDate(entry.startTime) : null,
       durationMinutes: computeDuration(entry.startTime, entry.endTime),
       segments: entrySegments,
       markdown: entry.markdown ?? null,
       analysis: analysisMap.get(entry.id) ?? null
     } satisfies TimelineEntryDTO
   })
+}
+
+const formatLocalDate = (isoString: string): string => {
+  const date = new Date(isoString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 const computeDuration = (start?: string | null, end?: string | null) => {

@@ -16,20 +16,42 @@ const formatTimestamp = (value?: string | null) => {
 
 export const App: React.FC = () => {
   const [syncing, setSyncing] = React.useState(false)
-  const { data, error, isLoading, refetch, isFetching } = useQuery<TimelineResponse>({
-    queryKey: ['timeline'],
-    queryFn: fetchTimeline,
-    refetchInterval: 60_000
+  const [offset, setOffset] = React.useState(0)
+  const [allEntries, setAllEntries] = React.useState<TimelineResponse['timeline']>([])
+  const [loadingMore, setLoadingMore] = React.useState(false)
+
+  const { data, error, isLoading, refetch } = useQuery<TimelineResponse>({
+    queryKey: ['timeline', offset],
+    queryFn: () => fetchTimeline({ days: 7, offset }),
+    refetchInterval: offset === 0 ? 60_000 : false
   })
+
+  React.useEffect(() => {
+    if (data) {
+      if (offset === 0) {
+        setAllEntries(data.timeline)
+      } else {
+        setAllEntries((prev) => [...prev, ...data.timeline])
+      }
+    }
+  }, [data, offset])
 
   const handleSync = async () => {
     setSyncing(true)
     try {
       await triggerSync()
+      setOffset(0)
+      setAllEntries([])
       await refetch()
     } finally {
       setSyncing(false)
     }
+  }
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true)
+    setOffset((prev) => prev + 7)
+    setLoadingMore(false)
   }
 
   const state = data ?? {
@@ -39,9 +61,11 @@ export const App: React.FC = () => {
     integrations: []
   }
 
+  const hasMore = data?.timeline && data.timeline.length > 0
+
   return (
     <TooltipProvider>
-      <div className="mx-auto flex max-w-7xl flex-col gap-12 px-8 py-12">
+      <div className="mx-auto flex w-full max-w-[90rem] flex-col gap-12 px-6 py-12 lg:px-12 xl:max-w-[105rem] 2xl:max-w-[115rem]">
         <header className="flex flex-col gap-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="space-y-2">
@@ -53,23 +77,13 @@ export const App: React.FC = () => {
               </p>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => refetch()}
-                  disabled={isFetching}
-                  className="min-w-[100px] border-2 hover:border-foreground/40"
-                >
-                  {isFetching ? 'Loading...' : 'Refresh'}
-                </Button>
-                <Button
-                  onClick={handleSync}
-                  disabled={syncing}
-                  className="min-w-[120px] bg-foreground text-background hover:bg-foreground/90"
-                >
-                  {syncing ? 'Syncing…' : 'Manual Sync'}
-                </Button>
-              </div>
+              <Button
+                onClick={handleSync}
+                disabled={syncing}
+                className="bg-foreground text-background hover:bg-foreground/90"
+              >
+                {syncing ? 'Requesting…' : 'Request Limitless API'}
+              </Button>
               <div className="flex items-center gap-4 text-xs text-muted-foreground/70">
                 <span>Last sync: {formatTimestamp(state.lastSyncedAt)}</span>
                 <span>•</span>
@@ -95,12 +109,26 @@ export const App: React.FC = () => {
                   Activity Log
                 </p>
               </div>
-              {isLoading && !state.timeline.length ? (
+              {isLoading && !allEntries.length ? (
                 <SkeletonPlaceholder />
               ) : (
-                <TimelineBoard
-                  entries={state.timeline}
-                />
+                <>
+                  <TimelineBoard
+                    entries={allEntries}
+                  />
+                  {hasMore && (
+                    <div className="flex justify-center pt-6">
+                      <Button
+                        onClick={handleLoadMore}
+                        disabled={loadingMore || isLoading}
+                        variant="outline"
+                        className="min-w-[200px]"
+                      >
+                        {loadingMore || isLoading ? 'Loading...' : 'Read More'}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </section>
 
@@ -118,7 +146,7 @@ export const App: React.FC = () => {
                   Workers AI gpt-oss-20b
                 </span>
               </div>
-              <InsightsGrid entries={state.timeline} />
+              <InsightsGrid entries={allEntries} />
             </section>
 
           </>
