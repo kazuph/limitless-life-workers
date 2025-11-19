@@ -59,26 +59,30 @@ export const getTimelineSnapshot = async (
   }
 
   const ids = entries.map((entry) => entry.id)
-  const segments = await db
-    .select({
-      entryId: lifelogSegments.entryId,
-      nodeId: lifelogSegments.nodeId,
-      content: lifelogSegments.content,
-      startTime: lifelogSegments.startTime,
-      endTime: lifelogSegments.endTime,
-      nodeType: lifelogSegments.nodeType,
-      speakerName: lifelogSegments.speakerName
-    })
-    .from(lifelogSegments)
-    .where(inArray(lifelogSegments.entryId, ids))
+  const segments = await selectInChunks(ids, CHUNK_SIZE, (idsChunk) =>
+    db
+      .select({
+        entryId: lifelogSegments.entryId,
+        nodeId: lifelogSegments.nodeId,
+        content: lifelogSegments.content,
+        startTime: lifelogSegments.startTime,
+        endTime: lifelogSegments.endTime,
+        nodeType: lifelogSegments.nodeType,
+        speakerName: lifelogSegments.speakerName
+      })
+      .from(lifelogSegments)
+      .where(inArray(lifelogSegments.entryId, idsChunk))
+  )
 
-  const analyses = await db
-    .select({
-      entryId: lifelogAnalyses.entryId,
-      json: lifelogAnalyses.insightsJson
-    })
-    .from(lifelogAnalyses)
-    .where(inArray(lifelogAnalyses.entryId, ids))
+  const analyses = await selectInChunks(ids, CHUNK_SIZE, (idsChunk) =>
+    db
+      .select({
+        entryId: lifelogAnalyses.entryId,
+        json: lifelogAnalyses.insightsJson
+      })
+      .from(lifelogAnalyses)
+      .where(inArray(lifelogAnalyses.entryId, idsChunk))
+  )
 
   const analysisMap = new Map<string, AnalysisJSON>()
   for (const analysis of analyses) {
@@ -115,6 +119,29 @@ export const getTimelineSnapshot = async (
       analysis: analysisMap.get(entry.id) ?? null
     } satisfies TimelineEntryDTO
   })
+}
+
+const CHUNK_SIZE = 50
+
+const selectInChunks = async <TResult>(
+  ids: string[],
+  chunkSize: number,
+  runQuery: (chunk: string[]) => Promise<TResult[]>
+): Promise<TResult[]> => {
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize)
+    if (chunk.length) {
+      chunks.push(chunk)
+    }
+  }
+
+  if (!chunks.length) {
+    return []
+  }
+
+  const results = await Promise.all(chunks.map(runQuery))
+  return results.flat()
 }
 
 const formatLocalDate = (isoString: string): string => {
