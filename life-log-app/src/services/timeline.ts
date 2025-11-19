@@ -119,9 +119,12 @@ export const getTimelineSnapshot = async (
 
 const formatLocalDate = (isoString: string): string => {
   const date = new Date(isoString)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  // Convert to JST (UTC+9) by adding 9 hours
+  const jstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000)
+  // Use UTC methods on the adjusted date to get JST values
+  const year = jstDate.getUTCFullYear()
+  const month = String(jstDate.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(jstDate.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 

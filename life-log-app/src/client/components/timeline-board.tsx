@@ -32,48 +32,224 @@ export const TimelineBoard: React.FC<Props> = ({ entries }) => {
   return (
     <div className="space-y-6">
       {grouped.map(({ date, items }) => (
-        <div key={date} className="max-h-[600px] rounded-xl border-2 border-border bg-card/50 overflow-hidden flex flex-col">
-          {/* Card header with date and entry count - 縦スクロール対象外 */}
-          <div className="border-b border-border/40 bg-card/95 px-6 py-4 dark:bg-background/95 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <span className="text-lg font-bold text-foreground">{date}</span>
-              <span className="rounded-md border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                {items.length} {items.length === 1 ? 'entry' : 'entries'}
-              </span>
+        <TimelineGroup key={date} date={date} items={items} />
+      ))}
+    </div>
+  )
+}
+
+type TimelineGroupProps = {
+  date: string
+  items: TimelineEntry[]
+}
+
+const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
+  const leftScrollRef = React.useRef<HTMLDivElement>(null)
+  const rightScrollRef = React.useRef<HTMLDivElement>(null)
+  const entryRefs = React.useRef<Map<string, HTMLDivElement>>(new Map())
+  const [isSyncing, setIsSyncing] = React.useState(false)
+  const [isAutoScrolling, setIsAutoScrolling] = React.useState(false)
+
+  const syncScroll = (source: 'left' | 'right') => {
+    if (isSyncing) return
+    setIsSyncing(true)
+
+    const leftViewport = leftScrollRef.current
+    const rightViewport = rightScrollRef.current
+
+    if (leftViewport && rightViewport) {
+      if (source === 'left') {
+        rightViewport.scrollTop = leftViewport.scrollTop
+      } else {
+        leftViewport.scrollTop = rightViewport.scrollTop
+      }
+    }
+
+    requestAnimationFrame(() => setIsSyncing(false))
+  }
+
+  // Calculate horizontal scroll position based on entry time
+  const calculateHorizontalScroll = React.useCallback((entry: TimelineEntry): number => {
+    if (!rightScrollRef.current || !entry.startTime) return 0
+
+    const startDate = new Date(entry.startTime)
+    const hours = startDate.getHours()
+    const minutes = startDate.getMinutes()
+
+    // Calculate the time position as a percentage of the day
+    const timeInMinutes = hours * 60 + minutes
+    const totalMinutesInDay = 24 * 60
+    const timePercentage = timeInMinutes / totalMinutesInDay
+
+    // Get the scroll container width and scrollable content width
+    const container = rightScrollRef.current
+    const scrollWidth = container.scrollWidth
+    const clientWidth = container.clientWidth
+    const maxScroll = scrollWidth - clientWidth
+
+    // Calculate scroll position to center the entry time
+    const targetScroll = (timePercentage * scrollWidth) - (clientWidth / 2)
+    return Math.max(0, Math.min(targetScroll, maxScroll))
+  }, [])
+
+  // Find the currently visible entry based on vertical scroll position
+  const findVisibleEntry = React.useCallback((): TimelineEntry | null => {
+    if (!leftScrollRef.current) return null
+
+    const container = leftScrollRef.current
+    const scrollTop = container.scrollTop
+    const containerTop = container.getBoundingClientRect().top
+
+    // Find the entry closest to the top of the viewport
+    let closestEntry: TimelineEntry | null = null
+    let closestDistance = Infinity
+
+    items.forEach((entry) => {
+      const element = entryRefs.current.get(entry.id)
+      if (!element) return
+
+      const rect = element.getBoundingClientRect()
+      const entryTop = rect.top - containerTop + scrollTop
+      const distance = Math.abs(entryTop - scrollTop)
+
+      if (distance < closestDistance) {
+        closestDistance = distance
+        closestEntry = entry
+      }
+    })
+
+    return closestEntry
+  }, [items])
+
+  // Handle vertical scroll and auto-adjust horizontal scroll
+  const handleVerticalScroll = React.useCallback(() => {
+    if (isAutoScrolling) return
+
+    const visibleEntry = findVisibleEntry()
+    if (!visibleEntry || !rightScrollRef.current) return
+
+    const targetScrollLeft = calculateHorizontalScroll(visibleEntry)
+
+    setIsAutoScrolling(true)
+
+    // Smooth scroll to target position
+    rightScrollRef.current.scrollTo({
+      left: targetScrollLeft,
+      behavior: 'smooth'
+    })
+
+    // Reset auto-scrolling flag after animation completes
+    setTimeout(() => setIsAutoScrolling(false), 500)
+  }, [calculateHorizontalScroll, findVisibleEntry, isAutoScrolling])
+
+  // Auto-scroll to latest entry time on mount
+  React.useEffect(() => {
+    if (!rightScrollRef.current || !items.length) return
+
+    const latestEntry = items[0]
+    const initialScroll = calculateHorizontalScroll(latestEntry)
+    rightScrollRef.current.scrollLeft = initialScroll
+  }, [items, calculateHorizontalScroll])
+
+  // Set up vertical scroll listener with throttling
+  React.useEffect(() => {
+    const leftContainer = leftScrollRef.current
+    const rightContainer = rightScrollRef.current
+    if (!leftContainer || !rightContainer) return
+
+    let rafId: number | null = null
+
+    const throttledVerticalScroll = () => {
+      if (rafId !== null) return
+
+      rafId = requestAnimationFrame(() => {
+        handleVerticalScroll()
+        rafId = null
+      })
+    }
+
+    // Listen to both containers
+    leftContainer.addEventListener('scroll', throttledVerticalScroll)
+    rightContainer.addEventListener('scroll', throttledVerticalScroll)
+
+    return () => {
+      leftContainer.removeEventListener('scroll', throttledVerticalScroll)
+      rightContainer.removeEventListener('scroll', throttledVerticalScroll)
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+    }
+  }, [handleVerticalScroll])
+
+
+  return (
+    <div className="max-h-[600px] rounded-xl border-2 border-border bg-card/50 overflow-hidden flex flex-col">
+      {/* Card header with date and entry count */}
+      <div className="border-b border-border/40 bg-card/95 px-6 py-4 dark:bg-background/95 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-lg font-bold text-foreground">{date}</span>
+          <span className="rounded-md border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            {items.length} {items.length === 1 ? 'entry' : 'entries'}
+          </span>
+        </div>
+      </div>
+
+      {/* 2-column layout: fixed left column + scrollable right column */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left column: Entry info (fixed, vertical scroll only) */}
+        <div className="w-64 flex-shrink-0 flex flex-col border-r border-border/60">
+          {/* Empty space for hour labels alignment */}
+          <div className="flex-shrink-0 h-[36px] border-b border-border/20 bg-card/95 dark:bg-background/95" />
+
+          {/* Entry list (vertical scroll) */}
+          <div
+            ref={leftScrollRef}
+            className="flex-1 overflow-y-auto overflow-x-hidden"
+            onScroll={() => syncScroll('left')}
+          >
+            <div className="py-1">
+              {items.map((entry) => (
+                <TimelineEntryInfo
+                  key={entry.id}
+                  entry={entry}
+                  ref={(el) => {
+                    if (el) {
+                      entryRefs.current.set(entry.id, el)
+                    } else {
+                      entryRefs.current.delete(entry.id)
+                    }
+                  }}
+                />
+              ))}
             </div>
           </div>
+        </div>
 
-          {/* Hour labels - 縦スクロール対象外、横スクロール可能 */}
-          <ScrollArea
-            className="flex-shrink-0 w-full [&_[data-radix-scroll-area-viewport]]:overflow-x-auto [&_[data-radix-scroll-area-viewport]]:overflow-y-hidden"
+        {/* Right column: Timeline chart (horizontal + vertical scroll) */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Combined hour labels + timeline bars (horizontal + vertical scroll) */}
+          <div
+            ref={rightScrollRef}
+            className="flex-1 overflow-auto"
+            onScroll={() => syncScroll('right')}
           >
             <div className="min-w-full xl:min-w-[1600px] 2xl:min-w-[1900px]">
-              <div className="flex border-b border-border/20 pb-2 pt-2 bg-card/95 dark:bg-background/95">
-                <div className="sticky left-0 z-10 w-64 flex-shrink-0 bg-card/95 py-1 pr-4 dark:bg-background/95" />
-                <div className="flex flex-1">
-                  {HOURS.map((hour) => (
-                    <div
-                      key={hour}
-                      className="flex-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
-                    >
-                      {hour.toString().padStart(2, '0')}
-                    </div>
-                  ))}
-                </div>
+              {/* Hour labels (sticky header) */}
+              <div className="sticky top-0 z-20 flex border-b border-border/20 pb-2 pt-2 bg-card/95 dark:bg-background/95 h-[36px]">
+                {HOURS.map((hour) => (
+                  <div
+                    key={hour}
+                    className="flex-1 text-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+                  >
+                    {hour.toString().padStart(2, '0')}
+                  </div>
+                ))}
               </div>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
 
-          {/* Timeline entries - 縦スクロール可能、横スクロール可能（エントリ情報は固定） */}
-          <ScrollArea
-            className="flex-1 w-full [&_[data-radix-scroll-area-viewport]]:overflow-x-auto"
-          >
-            <div className="min-w-full xl:min-w-[1600px] 2xl:min-w-[1900px] relative">
-              {/* Background grid lines */}
-              <div className="absolute inset-0 flex pointer-events-none z-0">
-                <div className="w-64 flex-shrink-0" />
-                <div className="flex flex-1">
+              {/* Timeline bars with background grid */}
+              <div className="relative">
+                {/* Background grid lines */}
+                <div className="absolute inset-0 flex pointer-events-none z-0">
                   {HOURS.map((hour) => (
                     <div
                       key={hour}
@@ -81,30 +257,57 @@ export const TimelineBoard: React.FC<Props> = ({ entries }) => {
                     />
                   ))}
                 </div>
-              </div>
 
-              <div className="relative px-6 py-1 z-10">
-                {items.map((entry) => (
-                  <TimelineRow
-                    key={entry.id}
-                    entry={entry}
-                  />
-                ))}
+                <div className="relative py-1 z-10">
+                  {items.map((entry) => (
+                    <TimelineBar key={entry.id} entry={entry} />
+                  ))}
+                </div>
               </div>
             </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          </div>
         </div>
-      ))}
+      </div>
     </div>
   )
 }
 
-type TimelineRowProps = {
+type TimelineEntryInfoProps = {
   entry: TimelineEntry
 }
 
-const TimelineRow: React.FC<TimelineRowProps> = ({ entry }) => {
+const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProps>(({ entry }, ref) => {
+  const charCount = React.useMemo(() => {
+    const allContent = entry.segments
+      ?.map((segment) => segment.content?.trim())
+      .filter((text): text is string => Boolean(text && text.length > 0))
+      .join('') ?? ''
+    return allContent.length
+  }, [entry])
+
+  return (
+    <div ref={ref} className="px-6 py-0.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{toLocaleTime(entry.startTime)} - {toLocaleTime(entry.endTime)}</span>
+        <span className="text-xs text-muted-foreground">{charCount.toLocaleString()}文字</span>
+      </div>
+      <div className="mt-0.5 flex items-center gap-1.5">
+        <p className="text-sm font-semibold text-foreground">{entry.title}</p>
+        {entry.analysis?.mood && (
+          <span className="text-xs text-muted-foreground whitespace-nowrap">{entry.analysis.mood}</span>
+        )}
+      </div>
+    </div>
+  )
+})
+
+TimelineEntryInfo.displayName = 'TimelineEntryInfo'
+
+type TimelineBarProps = {
+  entry: TimelineEntry
+}
+
+const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
   const entryTranscript = React.useMemo(() => {
     const pieces =
       entry.segments
@@ -118,14 +321,6 @@ const TimelineRow: React.FC<TimelineRowProps> = ({ entry }) => {
         .join('\n')
     }
     return entry.markdown ?? entry.title ?? ''
-  }, [entry])
-
-  const charCount = React.useMemo(() => {
-    const allContent = entry.segments
-      ?.map((segment) => segment.content?.trim())
-      .filter((text): text is string => Boolean(text && text.length > 0))
-      .join('') ?? ''
-    return allContent.length
   }, [entry])
 
   const segments = React.useMemo<RenderedSegment[]>(() => {
@@ -188,69 +383,52 @@ const TimelineRow: React.FC<TimelineRowProps> = ({ entry }) => {
   }, [entry, entryTranscript])
 
   return (
-    <div className="flex items-start gap-2">
-      {/* Entry info */}
-      <div className="sticky left-0 z-20 w-64 flex-shrink-0 py-0.5 pr-4 backdrop-blur-sm bg-card/95 dark:bg-background/95 border-r border-border/60">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{toLocaleTime(entry.startTime)} - {toLocaleTime(entry.endTime)}</span>
-          <span className="text-xs text-muted-foreground">{charCount.toLocaleString()}文字</span>
-        </div>
-        <div className="mt-0.5 flex items-center gap-1.5">
-          <p className="text-sm font-semibold text-foreground">{entry.title}</p>
-          {entry.analysis?.mood && (
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{entry.analysis.mood}</span>
-          )}
-        </div>
-      </div>
-
-      {/* Timeline bar */}
-      <div className="relative flex flex-1 h-10">
-        {/* Timeline segments */}
-        <div className="relative h-full w-full flex items-center">
-          {segments.map((segment, idx) => (
-            <Tooltip delayDuration={50} key={segment.id || idx}>
-              <TooltipTrigger asChild>
-                <div
-                  className="absolute h-6 rounded-lg bg-purple-500 hover:bg-purple-600 pointer-events-auto transition-colors z-0"
-                  data-testid="timeline-bar"
-                  style={{
-                    left: segment.left,
-                    width: segment.width,
-                    minWidth: '8px',
-                    top: '50%',
-                    transform: 'translateY(-50%)'
-                  }}
-                />
-              </TooltipTrigger>
-              <TooltipPrimitive.Portal>
-                <TooltipContent
-                  className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl"
-                  style={{ zIndex: 99999 }}
-                  side="left"
-                  align="start"
-                  avoidCollisions={false}
-                >
-                <p className="text-sm font-medium text-popover-foreground whitespace-pre-wrap leading-relaxed">
-                  {segment.transcript || segment.content || segment.preview}
+    <div className="relative h-10 px-6">
+      {/* Timeline segments */}
+      <div className="relative h-full w-full flex items-center">
+        {segments.map((segment, idx) => (
+          <Tooltip delayDuration={50} key={segment.id || idx}>
+            <TooltipTrigger asChild>
+              <div
+                className="absolute h-6 rounded-full bg-purple-500 hover:bg-purple-600 pointer-events-auto transition-colors z-0"
+                data-testid="timeline-bar"
+                style={{
+                  left: segment.left,
+                  width: segment.width,
+                  minWidth: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)'
+                }}
+              />
+            </TooltipTrigger>
+            <TooltipPrimitive.Portal>
+              <TooltipContent
+                className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl"
+                style={{ zIndex: 99999 }}
+                side="left"
+                align="start"
+                avoidCollisions={false}
+              >
+              <p className="text-sm font-medium text-popover-foreground whitespace-pre-wrap leading-relaxed">
+                {segment.transcript || segment.content || segment.preview}
+              </p>
+              {segment.nodeType && (
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {segment.nodeType}
                 </p>
-                {segment.nodeType && (
-                  <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {segment.nodeType}
-                  </p>
-                )}
-                {segment.speakerName && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Speaker: {segment.speakerName}
-                  </p>
-                )}
+              )}
+              {segment.speakerName && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  {toLocaleTime(segment.startTime)} - {toLocaleTime(segment.endTime)}
+                  Speaker: {segment.speakerName}
                 </p>
-              </TooltipContent>
-              </TooltipPrimitive.Portal>
-            </Tooltip>
-          ))}
-        </div>
+              )}
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {toLocaleTime(segment.startTime)} - {toLocaleTime(segment.endTime)}
+              </p>
+            </TooltipContent>
+            </TooltipPrimitive.Portal>
+          </Tooltip>
+        ))}
       </div>
     </div>
   )
