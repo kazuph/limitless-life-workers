@@ -121,27 +121,6 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
     return closestEntry
   }, [items])
 
-  // Handle vertical scroll and auto-adjust horizontal scroll
-  const handleVerticalScroll = React.useCallback(() => {
-    if (isAutoScrolling) return
-
-    const visibleEntry = findVisibleEntry()
-    if (!visibleEntry || !rightScrollRef.current) return
-
-    const targetScrollLeft = calculateHorizontalScroll(visibleEntry)
-
-    setIsAutoScrolling(true)
-
-    // Smooth scroll to target position
-    rightScrollRef.current.scrollTo({
-      left: targetScrollLeft,
-      behavior: 'smooth'
-    })
-
-    // Reset auto-scrolling flag after animation completes
-    setTimeout(() => setIsAutoScrolling(false), 500)
-  }, [calculateHorizontalScroll, findVisibleEntry, isAutoScrolling])
-
   // Auto-scroll to latest entry time on mount
   React.useEffect(() => {
     if (!rightScrollRef.current || !items.length) return
@@ -151,7 +130,7 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
     rightScrollRef.current.scrollLeft = initialScroll
   }, [items, calculateHorizontalScroll])
 
-  // Set up vertical scroll listener with throttling
+  // Set up vertical scroll listener with smooth real-time horizontal scroll
   React.useEffect(() => {
     const leftContainer = leftScrollRef.current
     const rightContainer = rightScrollRef.current
@@ -159,27 +138,34 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
 
     let rafId: number | null = null
 
-    const throttledVerticalScroll = () => {
+    const syncHorizontalScroll = () => {
       if (rafId !== null) return
+      if (isAutoScrolling) return
 
       rafId = requestAnimationFrame(() => {
-        handleVerticalScroll()
+        const visibleEntry = findVisibleEntry()
+        if (visibleEntry && rightScrollRef.current) {
+          const targetScrollLeft = calculateHorizontalScroll(visibleEntry)
+
+          // Use instant scroll (no 'smooth' behavior) for real-time syncing
+          rightScrollRef.current.scrollLeft = targetScrollLeft
+        }
         rafId = null
       })
     }
 
-    // Listen to both containers
-    leftContainer.addEventListener('scroll', throttledVerticalScroll)
-    rightContainer.addEventListener('scroll', throttledVerticalScroll)
+    // Listen to both containers for scroll events
+    leftContainer.addEventListener('scroll', syncHorizontalScroll, { passive: true })
+    rightContainer.addEventListener('scroll', syncHorizontalScroll, { passive: true })
 
     return () => {
-      leftContainer.removeEventListener('scroll', throttledVerticalScroll)
-      rightContainer.removeEventListener('scroll', throttledVerticalScroll)
+      leftContainer.removeEventListener('scroll', syncHorizontalScroll)
+      rightContainer.removeEventListener('scroll', syncHorizontalScroll)
       if (rafId !== null) {
         cancelAnimationFrame(rafId)
       }
     }
-  }, [handleVerticalScroll])
+  }, [calculateHorizontalScroll, findVisibleEntry, isAutoScrolling])
 
 
   return (
