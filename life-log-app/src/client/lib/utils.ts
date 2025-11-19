@@ -1,7 +1,13 @@
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { useId as useReactId } from 'react'
 
 export const cn = (...inputs: unknown[]) => twMerge(clsx(inputs))
+
+export const useId = (deterministicId?: string) => {
+  const nonDeterministicId = useReactId()
+  return deterministicId || nonDeterministicId
+}
 
 export const toLocaleTime = (value?: string | null) => {
   if (!value) return '--:--'
