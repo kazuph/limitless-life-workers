@@ -271,18 +271,56 @@ const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProp
     return allContent.length
   }, [entry])
 
+  const entryTranscript = React.useMemo(() => {
+    const pieces =
+      entry.segments
+        ?.map((segment) => segment.content?.trim())
+        .filter((text): text is string => Boolean(text && text.length > 0)) ?? []
+    if (pieces.length) return pieces.join('\n\n')
+    if (entry.analysis?.summary) return entry.analysis.summary
+    if (entry.analysis?.time_blocks?.length) {
+      return entry.analysis.time_blocks
+        .map((block) => `${block.label}: ${block.details ?? ''}`.trim())
+        .join('\n')
+    }
+    return entry.markdown ?? entry.title ?? ''
+  }, [entry])
+
   return (
     <div ref={ref} className="px-6 py-0.5">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{toLocaleTime(entry.startTime)} - {toLocaleTime(entry.endTime)}</span>
         <span className="text-xs text-muted-foreground">{charCount.toLocaleString()}文字</span>
       </div>
-      <div className="mt-0.5 flex items-center gap-1.5">
-        <p className="text-sm font-semibold text-foreground">{entry.title}</p>
-        {entry.analysis?.mood && (
-          <span className="text-xs text-muted-foreground whitespace-nowrap">{entry.analysis.mood}</span>
-        )}
-      </div>
+      <Tooltip delayDuration={50}>
+        <TooltipTrigger asChild>
+          <div className="mt-0.5 flex items-center gap-1.5 cursor-pointer">
+            <p className="text-sm font-semibold text-foreground">{entry.title}</p>
+            {entry.analysis?.mood && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{entry.analysis.mood}</span>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipPrimitive.Portal>
+          <TooltipContent
+            className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl"
+            style={{ zIndex: 99999 }}
+            side="right"
+            align="start"
+            avoidCollisions={true}
+          >
+            <p className="text-sm font-medium text-popover-foreground whitespace-pre-wrap leading-relaxed">
+              {entryTranscript}
+            </p>
+            {entry.analysis?.summary && (
+              <div className="mt-2 pt-2 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Summary</p>
+                <p className="mt-1 text-xs text-popover-foreground">{entry.analysis.summary}</p>
+              </div>
+            )}
+          </TooltipContent>
+        </TooltipPrimitive.Portal>
+      </Tooltip>
     </div>
   )
 })
