@@ -12,6 +12,11 @@ type RenderedSegment = TimelineSegment & {
   transcript: string
 }
 
+type RawLogLine = {
+  text: string
+  timeLabel?: string | null
+}
+
 type Props = {
   entries: TimelineEntry[]
 }
@@ -286,6 +291,8 @@ const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProp
     return entry.markdown ?? entry.title ?? ''
   }, [entry])
 
+  const rawLogs = React.useMemo<RawLogLine[]>(() => buildRawLogs(entry), [entry])
+
   return (
     <div ref={ref} className="px-6 py-0.5">
       <div className="flex items-center justify-between">
@@ -303,21 +310,38 @@ const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProp
         </TooltipTrigger>
         <TooltipPrimitive.Portal>
           <TooltipContent
-            className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl"
+            className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl space-y-2"
             style={{ zIndex: 99999 }}
             side="right"
             align="start"
             avoidCollisions={true}
           >
-            <p className="text-sm font-medium text-popover-foreground whitespace-pre-wrap leading-relaxed">
-              {entryTranscript}
-            </p>
             {entry.analysis?.summary && (
-              <div className="mt-2 pt-2 border-t border-border">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Summary</p>
-                <p className="mt-1 text-xs text-popover-foreground">{entry.analysis.summary}</p>
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</p>
+                <p className="mt-1 text-sm text-popover-foreground whitespace-pre-wrap leading-relaxed">
+                  {entry.analysis.summary}
+                </p>
               </div>
             )}
+
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Logs</p>
+              {rawLogs.length === 0 ? (
+                <p className="text-xs text-muted-foreground">ログが見つかりませんでした</p>
+              ) : (
+                <ul className="space-y-1">
+                  {rawLogs.map((log, idx) => (
+                    <li key={idx} className="flex gap-2 text-xs text-popover-foreground leading-relaxed">
+                      <span className="text-[10px] font-mono text-muted-foreground min-w-[48px]">
+                        {log.timeLabel ?? '—'}
+                      </span>
+                      <span className="whitespace-pre-wrap">{log.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </TooltipContent>
         </TooltipPrimitive.Portal>
       </Tooltip>
@@ -406,6 +430,9 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
     return rendered
   }, [entry, entryTranscript])
 
+  const rawLogs = React.useMemo<RawLogLine[]>(() => buildRawLogs(entry), [entry])
+  const analysisSummary = entry.analysis?.summary?.trim()
+
   return (
     <div className="relative h-10 px-6">
       {/* Timeline segments */}
@@ -427,29 +454,39 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
             </TooltipTrigger>
             <TooltipPrimitive.Portal>
               <TooltipContent
-                className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl"
+                className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl space-y-2"
                 style={{ zIndex: 99999 }}
                 side="left"
                 align="start"
                 avoidCollisions={false}
               >
-              <p className="text-sm font-medium text-popover-foreground whitespace-pre-wrap leading-relaxed">
-                {segment.transcript || segment.content || segment.preview}
-              </p>
-              {segment.nodeType && (
-                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {segment.nodeType}
-                </p>
-              )}
-              {segment.speakerName && (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Speaker: {segment.speakerName}
-                </p>
-              )}
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {toLocaleTime(segment.startTime)} - {toLocaleTime(segment.endTime)}
-              </p>
-            </TooltipContent>
+                {analysisSummary && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</p>
+                    <p className="mt-1 text-sm text-popover-foreground whitespace-pre-wrap leading-relaxed">
+                      {analysisSummary}
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Logs</p>
+                  {rawLogs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">ログが見つかりませんでした</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {rawLogs.map((log, index) => (
+                        <li key={index} className="flex gap-2 text-xs text-popover-foreground leading-relaxed">
+                          <span className="text-[10px] font-mono text-muted-foreground min-w-[48px]">
+                            {log.timeLabel ?? `${toLocaleTime(segment.startTime)}-${toLocaleTime(segment.endTime)}`}
+                          </span>
+                          <span className="whitespace-pre-wrap">{log.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </TooltipContent>
             </TooltipPrimitive.Portal>
           </Tooltip>
         ))}
@@ -542,6 +579,35 @@ const computeBand = (
   const width = clamp(duration / minutesPerDay, 0.01, 1) * 100
 
   return { left, width }
+}
+
+const buildRawLogs = (entry: TimelineEntry): RawLogLine[] => {
+  if (entry.segments && entry.segments.length > 0) {
+    return entry.segments
+      .map((segment) => {
+        const text = segment.content?.trim()
+        if (!text) return null
+        return {
+          text,
+          timeLabel: segment.startTime ? toLocaleTime(segment.startTime) : null
+        }
+      })
+      .filter((line): line is RawLogLine => line !== null)
+  }
+
+  if (entry.markdown && entry.markdown.trim().length > 0) {
+    return entry.markdown
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((text) => ({ text, timeLabel: null }))
+  }
+
+  if (entry.title) {
+    return [{ text: entry.title, timeLabel: null }]
+  }
+
+  return []
 }
 
 const selectDate = (value?: string | null, fallback?: string | null) => {
