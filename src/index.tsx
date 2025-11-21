@@ -8,7 +8,7 @@ import { basicAuth } from 'hono/basic-auth'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Context } from 'hono'
 import { renderer } from './renderer'
-import type { Env } from './env'
+import type { Env, Bindings } from './env'
 import { withDb } from './middleware/db'
 import { getIntegrationSuggestions } from './services/integrations'
 import { getTimelineSnapshot } from './services/timeline'
@@ -20,12 +20,18 @@ import {
   getLastSyncedAt,
   syncLifelogs
 } from './services/sync'
+import { analyzeWithGemini } from './services/gemini-insights'
+import { postInsightsToSlack, postErrorToSlack } from './services/slack'
 import { getDb } from './db/client'
 import { lifelogEntries, lifelogSegments } from './db/schema'
 import { sql } from 'drizzle-orm'
 import { cloudflareRateLimiter } from '@hono-rate-limiter/cloudflare'
+import { getSyncStateValue, upsertSyncState } from './services/state'
 
 const app = new Hono<Env>()
+const LAST_GEMINI_POSTED_KEY = 'gemini:lastPostedAt'
+const MORNING_SUMMARY_KEY = 'gemini:morningSummaryDate'
+const EVENING_SUMMARY_KEY = 'gemini:eveningSummaryDate'
 
 // Apply security headers
 app.use('*', secureHeaders({
@@ -196,6 +202,29 @@ app.post('/api/analyze/:entryId', async (c) => {
   return c.json({ ok, analyzedIds }, status)
 })
 
+// Gemini分析してSlackに投稿（手動トリガー用）
+app.post('/api/slack-insights', async (c) => {
+  const db = c.get('db')
+  const hours = parseInt(c.req.query('hours') || '24', 10)
+
+  try {
+    const insights = await analyzeWithGemini(db, c.env, hours)
+    if (!insights) {
+      return c.json({ ok: false, error: 'No insights generated' }, 404)
+    }
+
+    const posted = await postInsightsToSlack(c.env, insights)
+    return c.json({
+      ok: posted,
+      insights,
+      posted
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return c.json({ ok: false, error: message }, 500)
+  }
+})
+
 app.get('/', renderer, async (c) => {
   await ensureFreshData(c)
   return c.render(
@@ -265,13 +294,131 @@ const isStale = (value: string, minutes: number) => {
 const fetchHandler: ExportedHandler<Env>['fetch'] = (req, env, ctx) =>
   app.fetch(req, env, ctx)
 
-const scheduled: ExportedHandlerScheduledHandler<Env> = async (
+const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (
   event,
   env,
   ctx
 ) => {
   const db = getDb(env.LIFELOG_DB)
-  await syncLifelogs(db, env)
+
+  // 1. Limitlessからデータを同期
+  try {
+    await syncLifelogs(db, env)
+  } catch (error) {
+    console.error('Sync failed:', error)
+    await postErrorToSlack(env, error instanceof Error ? error : String(error), 'Limitless同期')
+  }
+
+  // 2. Workers AIで分析
+  try {
+    await analyzeFreshEntries(db, env, { limit: 3 })
+  } catch (error) {
+    console.error('Workers AI analysis failed:', error)
+    await postErrorToSlack(env, error instanceof Error ? error : String(error), 'Workers AI分析')
+  }
+
+  // 3. Gemini 2.0 Flashでインサイト分析してSlackに投稿
+  ctx.waitUntil(
+    (async () => {
+      try {
+        // 前回投稿以降をまとめて分析（最大24時間ぶんを再取得）
+        const lastPostedAt = await getSyncStateValue(db, LAST_GEMINI_POSTED_KEY)
+        const now = new Date()
+        const hoursSinceLast = lastPostedAt
+          ? Math.max(1, Math.ceil((now.getTime() - new Date(lastPostedAt).getTime()) / (60 * 60 * 1000)))
+          : 1
+        const hoursBack = Math.min(hoursSinceLast, 24)
+
+        const insights = await analyzeWithGemini(db, env, { hoursBack, mode: 'hourly_bullets' })
+        if (insights) {
+          await postInsightsToSlack(env, insights)
+          await upsertSyncState(db, LAST_GEMINI_POSTED_KEY, now.toISOString())
+          console.info('Successfully posted insights to Slack')
+        }
+      } catch (error) {
+        console.error('Gemini analysis or Slack post failed:', error)
+        await postErrorToSlack(env, error instanceof Error ? error : String(error), 'Gemini分析/Slack投稿')
+      }
+    })()
+  )
+
+  // 4. 朝夕のデイリーまとめ（JST 6時・23時に1回ずつ）
+  ctx.waitUntil(
+    (async () => {
+      try {
+        await maybePostDailySummaries(db, env)
+      } catch (error) {
+        console.error('Daily summary failed:', error)
+        await postErrorToSlack(env, error instanceof Error ? error : String(error), 'デイリーGeminiまとめ')
+      }
+    })()
+  )
+}
+
+const toJstDate = (date: Date) =>
+  new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
+
+const formatJstDate = (date: Date) => {
+  const d = toJstDate(date)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const buildJstDate = (base: Date, hour: number, minute = 0, second = 0) => {
+  const d = toJstDate(base)
+  d.setHours(hour, minute, second, 0)
+  return d
+}
+
+const maybePostDailySummaries = async (db: Database, env: Bindings) => {
+  const nowJst = toJstDate(new Date())
+  const hour = nowJst.getHours()
+  const todayStr = formatJstDate(nowJst)
+
+  // 朝6時: 前日0:00-24:00
+  if (hour === 6) {
+    const yesterday = new Date(nowJst)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const prevDayStr = formatJstDate(yesterday)
+    const lastPosted = await getSyncStateValue(db, MORNING_SUMMARY_KEY)
+    if (lastPosted !== prevDayStr) {
+      const rangeStart = buildJstDate(yesterday, 0)
+      const rangeEnd = buildJstDate(nowJst, 0) // 当日0時
+      const insights = await analyzeWithGemini(db, env, {
+        from: rangeStart,
+        to: rangeEnd,
+        maxEntries: 200,
+        maxSegments: 400
+      })
+      if (insights) {
+        const header = `@kazuph 🌅 *前日デイリーまとめ (JST)*\n_${prevDayStr}_\n\n`
+        await postInsightsToSlack(env, insights, header)
+        await upsertSyncState(db, MORNING_SUMMARY_KEY, prevDayStr)
+      }
+    }
+  }
+
+  // 夜23時: 当日6:00-23:00
+  if (hour === 23) {
+    const lastPosted = await getSyncStateValue(db, EVENING_SUMMARY_KEY)
+    if (lastPosted !== todayStr) {
+      const rangeStart = buildJstDate(nowJst, 6)
+      const rangeEnd = buildJstDate(nowJst, 23, 59, 59)
+      const insights = await analyzeWithGemini(db, env, {
+        from: rangeStart,
+        to: rangeEnd,
+        maxEntries: 200,
+        maxSegments: 400
+      })
+      if (insights) {
+        const header = `@kazuph 🌙 *本日のまとめ (JST)*\n_${todayStr} 06:00-23:00_\n\n`
+        await postInsightsToSlack(env, insights, header)
+        await upsertSyncState(db, EVENING_SUMMARY_KEY, todayStr)
+      }
+    }
+  }
 }
 
 export default {
