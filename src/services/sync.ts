@@ -9,6 +9,9 @@ import { getSyncStateValue, upsertSyncState } from './state'
 
 const LAST_UPDATED_KEY = 'lifelog:lastUpdatedAt'
 const LAST_SYNC_KEY = 'lifelog:lastSyncedAt'
+// D1 allows up to 100 bound parameters per statement.
+// Each segment insert binds 11 params, so batch at most 9 rows (9 * 11 = 99).
+const SEGMENT_BATCH_SIZE = 9
 
 export type SyncStats = {
   processed: number
@@ -84,10 +87,11 @@ export const syncLifelogs = async (
       }
       if (segments.length) {
         await db.delete(lifelogSegments).where(eq(lifelogSegments.entryId, lifelog.id))
-        for (const segment of segments) {
-          await db.insert(lifelogSegments).values(segment)
+        const batches = chunkArray(segments, SEGMENT_BATCH_SIZE)
+        for (const batch of batches) {
+          await db.insert(lifelogSegments).values(batch)
         }
-        console.log(`[Sync] Inserted ${segments.length} segments for entry ${lifelog.id}`)
+        console.log(`[Sync] Inserted ${segments.length} segments for entry ${lifelog.id} in ${batches.length} batches (size ${SEGMENT_BATCH_SIZE})`)
       } else {
         console.warn(`[Sync] No segments for entry ${lifelog.id}`)
       }

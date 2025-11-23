@@ -10,6 +10,9 @@ export type Bindings = {
   RATE_LIMITER?: RateLimit
   DISABLE_LIMITLESS_SYNC?: string
   DISABLE_WORKERS_AI?: string
+  GEMINI_API_KEY?: string
+  SLACK_BOT_TOKEN?: string
+  SLACK_CHANNEL?: string
 }
 
 export type Variables = {

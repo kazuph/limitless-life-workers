@@ -169,3 +169,14 @@ export const postErrorToSlack = async (
 
   return postToSlack(env, text)
 }
+
+export const postWarningToSlack = async (
+  env: Bindings,
+  message: string,
+  context?: string
+): Promise<boolean> => {
+  const timestamp = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+  const header = `⚠️ *同期観測*\n_${timestamp}_\n\n`
+  const body = context ? `*処理:* ${context}\n` : ''
+  return postToSlack(env, `${header}${body}${message}`)
+}

@@ -20,9 +20,11 @@ import {
   getLastSyncedAt,
   syncLifelogs
 } from './services/sync'
+import type { SyncStats } from './services/sync'
 import { analyzeWithGemini } from './services/gemini-insights'
-import { postInsightsToSlack, postErrorToSlack } from './services/slack'
+import { postInsightsToSlack, postErrorToSlack, postWarningToSlack } from './services/slack'
 import { getDb } from './db/client'
+import type { Database } from './db/client'
 import { lifelogEntries, lifelogSegments } from './db/schema'
 import { sql } from 'drizzle-orm'
 import { cloudflareRateLimiter } from '@hono-rate-limiter/cloudflare'
@@ -32,6 +34,8 @@ const app = new Hono<Env>()
 const LAST_GEMINI_POSTED_KEY = 'gemini:lastPostedAt'
 const MORNING_SUMMARY_KEY = 'gemini:morningSummaryDate'
 const EVENING_SUMMARY_KEY = 'gemini:eveningSummaryDate'
+const LAST_UPDATED_AT_KEY = 'lifelog:lastUpdatedAt'
+const LAST_SYNC_WARNING_KEY = 'lifelog:lastWarningAt'
 
 // Apply security headers
 app.use('*', secureHeaders({
@@ -300,14 +304,18 @@ const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (
   ctx
 ) => {
   const db = getDb(env.LIFELOG_DB)
+  const lastUpdatedBefore = await getSyncStateValue(db, LAST_UPDATED_AT_KEY)
+  let syncStats: SyncStats | null = null
 
   // 1. Limitlessからデータを同期
   try {
-    await syncLifelogs(db, env)
+    syncStats = await syncLifelogs(db, env)
   } catch (error) {
     console.error('Sync failed:', error)
     await postErrorToSlack(env, error instanceof Error ? error : String(error), 'Limitless同期')
   }
+
+  await maybeWarnStaleSync(db, env, syncStats, lastUpdatedBefore)
 
   // 2. Workers AIで分析
   try {
@@ -353,6 +361,55 @@ const scheduled: ExportedHandlerScheduledHandler<Bindings> = async (
       }
     })()
   )
+}
+
+const hoursSince = (iso?: string | null) => {
+  if (!iso) return null
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  return (Date.now() - date.getTime()) / (1000 * 60 * 60)
+}
+
+const maybeWarnStaleSync = async (
+  db: Database,
+  env: Bindings,
+  stats: SyncStats | null,
+  lastUpdatedBefore: string | null
+) => {
+  if (!stats) return
+
+  const lastUpdatedAfter = await getSyncStateValue(db, LAST_UPDATED_AT_KEY)
+
+  const lastWarningAt = await getSyncStateValue(db, LAST_SYNC_WARNING_KEY)
+  const hoursSinceWarning = hoursSince(lastWarningAt)
+  if (hoursSinceWarning !== null && hoursSinceWarning < 3) return
+
+  // 直近同期が成功していればスキップ
+  if (lastUpdatedAfter && lastUpdatedAfter !== lastUpdatedBefore) return
+
+  const staleHours = hoursSince(lastUpdatedAfter || lastUpdatedBefore)
+
+  // 初回や短時間のギャップでは通知を出さない
+  if (staleHours !== null && staleHours < 3) return
+
+  const ageText = lastUpdatedAfter || lastUpdatedBefore
+    ? `最後の更新から約${staleHours?.toFixed(1) ?? '?'}時間経過 (${lastUpdatedAfter || lastUpdatedBefore})`
+    : 'これまでに一度も同期成功していません'
+
+  console.warn('[Limitless] stale sync detected, sending Slack warning', {
+    lastUpdatedAfter,
+    lastUpdatedBefore,
+    staleHours,
+    lastWarningAt
+  })
+
+  await postWarningToSlack(
+    env,
+    `Limitless同期が新規データを取得できていません。${ageText}`,
+    'Limitless同期'
+  )
+
+  await upsertSyncState(db, LAST_SYNC_WARNING_KEY, new Date().toISOString())
 }
 
 const toJstDate = (date: Date) =>

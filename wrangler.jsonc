@@ -6,6 +6,13 @@
   "assets": {
     "directory": "./dist/client"
   },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "invocation_logs": true,
+      "head_sampling_rate": 1
+    }
+  },
   "triggers": {
     "crons": ["0 * * * *"]
   },
