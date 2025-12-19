@@ -17,10 +17,13 @@ const buildHeaders = () => {
   return headers
 }
 
-export const fetchTimeline = async (opts: { days?: number; offset?: number } = {}): Promise<TimelineResponse> => {
+export const fetchTimeline = async (
+  opts: { days?: number; offset?: number; detail?: boolean } = {}
+): Promise<TimelineResponse> => {
   const params = new URLSearchParams()
   if (opts.days !== undefined) params.set('days', opts.days.toString())
   if (opts.offset !== undefined) params.set('offset', opts.offset.toString())
+  if (opts.detail) params.set('detail', '1')
 
   const url = `/api/lifelogs${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url, {
@@ -32,6 +35,32 @@ export const fetchTimeline = async (opts: { days?: number; offset?: number } = {
   }
 
   return (await response.json()) as TimelineResponse
+}
+
+export const fetchTimelineEntry = async (entryId: string) => {
+  const response = await fetch(`/api/lifelogs/${entryId}`, {
+    headers: buildHeaders()
+  })
+  if (!response.ok) {
+    throw new Error('Failed to load entry details')
+  }
+  return (await response.json()) as TimelineResponse['timeline'][number]
+}
+
+export const fetchDaySummary = async (date: string) => {
+  const response = await fetch(`/api/day-summary?date=${encodeURIComponent(date)}`, {
+    headers: buildHeaders()
+  })
+  if (!response.ok) {
+    throw new Error('Failed to load day summary')
+  }
+  return (await response.json()) as {
+    date: string
+    tweets: string[]
+    generatedAt: string
+    source: 'cached' | 'generated' | 'unavailable'
+    model?: string
+  }
 }
 
 export const triggerSync = async () => {

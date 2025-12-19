@@ -30,10 +30,12 @@ export type TimelineEntryDTO = {
 
 export const getTimelineSnapshot = async (
   db: Database,
-  opts: { days?: number; offset?: number } = {}
+  opts: { days?: number; offset?: number; detail?: boolean; analysisLimit?: number } = {}
 ): Promise<TimelineEntryDTO[]> => {
   const days = opts.days ?? 7
   const offset = opts.offset ?? 0
+  const detail = opts.detail ?? true
+  const analysisLimit = opts.analysisLimit ?? 4
 
   // Calculate date range
   const now = new Date()
@@ -48,7 +50,7 @@ export const getTimelineSnapshot = async (
       title: lifelogEntries.title,
       startTime: lifelogEntries.startTime,
       endTime: lifelogEntries.endTime,
-      markdown: lifelogEntries.markdown
+      markdown: detail ? lifelogEntries.markdown : sql<null>`null`
     })
     .from(lifelogEntries)
     .where(sql`${lifelogEntries.startTime} >= ${startDate.toISOString()} AND ${lifelogEntries.startTime} < ${endDate.toISOString()}`)
@@ -59,36 +61,42 @@ export const getTimelineSnapshot = async (
   }
 
   const ids = entries.map((entry) => entry.id)
-  const segments = await selectInChunks(ids, CHUNK_SIZE, (idsChunk) =>
-    db
-      .select({
-        entryId: lifelogSegments.entryId,
-        nodeId: lifelogSegments.nodeId,
-        content: lifelogSegments.content,
-        startTime: lifelogSegments.startTime,
-        endTime: lifelogSegments.endTime,
-        nodeType: lifelogSegments.nodeType,
-        speakerName: lifelogSegments.speakerName
-      })
-      .from(lifelogSegments)
-      .where(inArray(lifelogSegments.entryId, idsChunk))
-  )
+  const segments = detail
+    ? await selectInChunks(ids, CHUNK_SIZE, (idsChunk) =>
+        db
+          .select({
+            entryId: lifelogSegments.entryId,
+            nodeId: lifelogSegments.nodeId,
+            content: lifelogSegments.content,
+            startTime: lifelogSegments.startTime,
+            endTime: lifelogSegments.endTime,
+            nodeType: lifelogSegments.nodeType,
+            speakerName: lifelogSegments.speakerName
+          })
+          .from(lifelogSegments)
+          .where(inArray(lifelogSegments.entryId, idsChunk))
+      )
+    : []
 
-  const analyses = await selectInChunks(ids, CHUNK_SIZE, (idsChunk) =>
-    db
-      .select({
-        entryId: lifelogAnalyses.entryId,
-        json: lifelogAnalyses.insightsJson
-      })
-      .from(lifelogAnalyses)
-      .where(inArray(lifelogAnalyses.entryId, idsChunk))
-  )
+  const analysisIds = detail ? ids : ids.slice(0, analysisLimit)
+  const analyses = analysisIds.length
+    ? await selectInChunks(analysisIds, CHUNK_SIZE, (idsChunk) =>
+        db
+          .select({
+            entryId: lifelogAnalyses.entryId,
+            json: lifelogAnalyses.insightsJson
+          })
+          .from(lifelogAnalyses)
+          .where(inArray(lifelogAnalyses.entryId, idsChunk))
+      )
+    : []
 
   const analysisMap = new Map<string, AnalysisJSON>()
   for (const analysis of analyses) {
     if (analysis.entryId && analysis.json) {
       try {
-        analysisMap.set(analysis.entryId, JSON.parse(analysis.json) as AnalysisJSON)
+        const parsed = JSON.parse(analysis.json) as AnalysisJSON
+        analysisMap.set(analysis.entryId, detail ? parsed : trimAnalysis(parsed))
       } catch (error) {
         console.error('Failed to parse analysis JSON', error)
       }
@@ -96,16 +104,18 @@ export const getTimelineSnapshot = async (
   }
 
   return entries.map((entry) => {
-    const entrySegments = segments
-      .filter((segment) => segment.entryId === entry.id)
-      .map((segment) => ({
-        id: segment.nodeId ?? crypto.randomUUID(),
-        content: segment.content ?? null,
-        startTime: segment.startTime ?? null,
-        endTime: segment.endTime ?? null,
-        nodeType: segment.nodeType ?? null,
-        speakerName: segment.speakerName ?? null
-      }))
+    const entrySegments = detail
+      ? segments
+          .filter((segment) => segment.entryId === entry.id)
+          .map((segment) => ({
+            id: segment.nodeId ?? crypto.randomUUID(),
+            content: segment.content ?? null,
+            startTime: segment.startTime ?? null,
+            endTime: segment.endTime ?? null,
+            nodeType: segment.nodeType ?? null,
+            speakerName: segment.speakerName ?? null
+          }))
+      : []
 
     return {
       id: entry.id,
@@ -119,6 +129,79 @@ export const getTimelineSnapshot = async (
       analysis: analysisMap.get(entry.id) ?? null
     } satisfies TimelineEntryDTO
   })
+}
+
+export const getTimelineEntryDetail = async (
+  db: Database,
+  entryId: string
+): Promise<TimelineEntryDTO | null> => {
+  const entry = await db
+    .select({
+      id: lifelogEntries.id,
+      title: lifelogEntries.title,
+      startTime: lifelogEntries.startTime,
+      endTime: lifelogEntries.endTime,
+      markdown: lifelogEntries.markdown
+    })
+    .from(lifelogEntries)
+    .where(sql`${lifelogEntries.id} = ${entryId}`)
+    .limit(1)
+    .then((rows) => rows[0])
+
+  if (!entry) return null
+
+  const [segments, analyses] = await Promise.all([
+    db
+      .select({
+        entryId: lifelogSegments.entryId,
+        nodeId: lifelogSegments.nodeId,
+        content: lifelogSegments.content,
+        startTime: lifelogSegments.startTime,
+        endTime: lifelogSegments.endTime,
+        nodeType: lifelogSegments.nodeType,
+        speakerName: lifelogSegments.speakerName
+      })
+      .from(lifelogSegments)
+      .where(sql`${lifelogSegments.entryId} = ${entryId}`),
+    db
+      .select({
+        entryId: lifelogAnalyses.entryId,
+        json: lifelogAnalyses.insightsJson
+      })
+      .from(lifelogAnalyses)
+      .where(sql`${lifelogAnalyses.entryId} = ${entryId}`)
+  ])
+
+  let analysis: AnalysisJSON | null = null
+  const analysisRow = analyses[0]
+  if (analysisRow?.json) {
+    try {
+      analysis = JSON.parse(analysisRow.json) as AnalysisJSON
+    } catch (error) {
+      console.error('Failed to parse analysis JSON', error)
+    }
+  }
+
+  const entrySegments = segments.map((segment) => ({
+    id: segment.nodeId ?? crypto.randomUUID(),
+    content: segment.content ?? null,
+    startTime: segment.startTime ?? null,
+    endTime: segment.endTime ?? null,
+    nodeType: segment.nodeType ?? null,
+    speakerName: segment.speakerName ?? null
+  }))
+
+  return {
+    id: entry.id,
+    title: entry.title ?? 'Untitled',
+    startTime: entry.startTime ?? null,
+    endTime: entry.endTime ?? null,
+    dateLabel: entry.startTime ? formatLocalDate(entry.startTime) : null,
+    durationMinutes: computeDuration(entry.startTime, entry.endTime),
+    segments: entrySegments,
+    markdown: entry.markdown ?? null,
+    analysis
+  }
 }
 
 const CHUNK_SIZE = 50
@@ -163,3 +246,12 @@ const computeDuration = (start?: string | null, end?: string | null) => {
   if (Number.isNaN(diff)) return null
   return Math.max(Math.round(diff / 60000), 1)
 }
+
+const trimAnalysis = (analysis: AnalysisJSON): AnalysisJSON => ({
+  summary: analysis.summary,
+  mood: analysis.mood,
+  tags: analysis.tags?.slice(0, 2) ?? [],
+  time_blocks: analysis.time_blocks?.slice(0, 3) ?? [],
+  action_items: analysis.action_items?.slice(0, 3) ?? [],
+  suggestions: analysis.suggestions?.slice(0, 2) ?? []
+})

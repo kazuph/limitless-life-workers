@@ -9,7 +9,7 @@ export type TimelineSegment = {
   speakerName: string | null
 }
 
-export type AnalysisPayload = AnalysisJSON | null
+export type AnalysisPayload = Partial<AnalysisJSON> | null
 
 export type TimelineEntry = {
   id: string
@@ -29,6 +29,14 @@ export type IntegrationSuggestion = {
   description: string
   action: string
   target: string
+}
+
+export type DaySummary = {
+  date: string
+  tweets: string[]
+  generatedAt: string
+  source: 'cached' | 'generated' | 'unavailable'
+  model?: string
 }
 
 export type TimelineResponse = {

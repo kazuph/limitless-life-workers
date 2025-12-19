@@ -1,15 +1,15 @@
 import * as React from 'react'
-import type { TimelineEntry, TimelineSegment } from '../types'
-import { ScrollArea, ScrollBar } from './ui/scroll-area'
+import { useQuery } from '@tanstack/react-query'
+import type { DaySummary, TimelineEntry, TimelineSegment } from '../types'
+import { fetchDaySummary, fetchTimelineEntry } from '../api'
 import { formatDateLabel, toLocaleTime } from '../lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
+import { Button } from './ui/button'
 
 type RenderedSegment = TimelineSegment & {
   left: string
   width: string
-  preview: string
-  transcript: string
 }
 
 type RawLogLine = {
@@ -25,6 +25,15 @@ const HOURS = Array.from({ length: 24 }).map((_, index) => index)
 
 export const TimelineBoard: React.FC<Props> = ({ entries }) => {
   const grouped = React.useMemo(() => groupByDate(entries), [entries])
+  const [selectedEntryId, setSelectedEntryId] = React.useState<string | null>(null)
+
+  const openDetails = React.useCallback((entryId: string) => {
+    setSelectedEntryId(entryId)
+  }, [])
+
+  const closeDetails = React.useCallback(() => {
+    setSelectedEntryId(null)
+  }, [])
 
   if (!entries.length) {
     return (
@@ -35,25 +44,40 @@ export const TimelineBoard: React.FC<Props> = ({ entries }) => {
   }
 
   return (
-    <div className="space-y-6">
-      {grouped.map(({ date, items }) => (
-        <TimelineGroup key={date} date={date} items={items} />
-      ))}
-    </div>
+    <>
+      <div className="space-y-6">
+        {grouped.map(({ date, items }) => (
+          <TimelineGroup key={date} date={date} items={items} onOpenDetails={openDetails} />
+        ))}
+      </div>
+      <EntryDetailsDrawer entryId={selectedEntryId} onClose={closeDetails} />
+    </>
   )
 }
 
 type TimelineGroupProps = {
   date: string
   items: TimelineEntry[]
+  onOpenDetails: (entryId: string) => void
 }
 
-const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
+const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetails }) => {
   const leftScrollRef = React.useRef<HTMLDivElement>(null)
   const rightScrollRef = React.useRef<HTMLDivElement>(null)
   const entryRefs = React.useRef<Map<string, HTMLDivElement>>(new Map())
+  const headerRef = React.useRef<HTMLDivElement>(null)
   const [isSyncing, setIsSyncing] = React.useState(false)
   const [isAutoScrolling, setIsAutoScrolling] = React.useState(false)
+  const observerOptions = React.useMemo(() => ({ rootMargin: '200px' }), [])
+  const isHeaderVisible = useInView(headerRef, observerOptions)
+
+  const { data: daySummary, isLoading: summaryLoading } = useQuery<DaySummary>({
+    queryKey: ['day-summary', date],
+    queryFn: () => fetchDaySummary(date),
+    enabled: isHeaderVisible,
+    staleTime: 6 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false
+  })
 
   const syncScroll = (source: 'left' | 'right') => {
     if (isSyncing) return
@@ -176,13 +200,45 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
   return (
     <div className="max-h-[600px] rounded-xl border-2 border-border bg-card/50 overflow-hidden flex flex-col">
       {/* Card header with date and entry count */}
-      <div className="border-b border-border/40 bg-card/95 px-6 py-4 dark:bg-background/95 flex-shrink-0">
+      <div
+        ref={headerRef}
+        className="border-b border-border/40 bg-card/95 px-6 py-4 dark:bg-background/95 flex-shrink-0"
+      >
         <div className="flex items-center gap-3">
           <span className="text-lg font-bold text-foreground">{date}</span>
           <span className="rounded-md border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
             {items.length} {items.length === 1 ? 'entry' : 'entries'}
           </span>
         </div>
+        {daySummary?.tweets?.length ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {daySummary.tweets.slice(0, 3).map((tweet, index) => (
+              <div
+                key={`${date}-tweet-${index}`}
+                className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm"
+              >
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-foreground/10 text-[10px] font-semibold text-foreground">
+                    LL
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-foreground/90">Limitless Daily</span>
+                    <span>@lifelog</span>
+                  </div>
+                </div>
+                <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                  {tweet}
+                </p>
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
+                  <span>{date}</span>
+                  <span>{daySummary.source === 'generated' ? 'generated' : 'cached'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : summaryLoading ? (
+          <p className="mt-2 text-xs text-muted-foreground/70">サマリー生成中...</p>
+        ) : null}
       </div>
 
       {/* 2-column layout: fixed left column + scrollable right column */}
@@ -203,6 +259,7 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
                 <TimelineEntryInfo
                   key={entry.id}
                   entry={entry}
+                  onOpenDetails={onOpenDetails}
                   ref={(el) => {
                     if (el) {
                       entryRefs.current.set(entry.id, el)
@@ -251,7 +308,7 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
 
                 <div className="relative py-1 z-10">
                   {items.map((entry) => (
-                    <TimelineBar key={entry.id} entry={entry} />
+                    <TimelineBar key={entry.id} entry={entry} onOpenDetails={onOpenDetails} />
                   ))}
                 </div>
               </div>
@@ -265,9 +322,11 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items }) => {
 
 type TimelineEntryInfoProps = {
   entry: TimelineEntry
+  onOpenDetails: (entryId: string) => void
 }
 
-const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProps>(({ entry }, ref) => {
+const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProps>(
+  ({ entry, onOpenDetails }, ref) => {
   const charCount = React.useMemo(() => {
     const allContent = entry.segments
       ?.map((segment) => segment.content?.trim())
@@ -275,33 +334,26 @@ const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProp
       .join('') ?? ''
     return allContent.length
   }, [entry])
-
-  const entryTranscript = React.useMemo(() => {
-    const pieces =
-      entry.segments
-        ?.map((segment) => segment.content?.trim())
-        .filter((text): text is string => Boolean(text && text.length > 0)) ?? []
-    if (pieces.length) return pieces.join('\n\n')
-    if (entry.analysis?.summary) return entry.analysis.summary
-    if (entry.analysis?.time_blocks?.length) {
-      return entry.analysis.time_blocks
-        .map((block) => `${block.label}: ${block.details ?? ''}`.trim())
-        .join('\n')
-    }
-    return entry.markdown ?? entry.title ?? ''
-  }, [entry])
-
-  const rawLogs = React.useMemo<RawLogLine[]>(() => buildRawLogs(entry), [entry])
+  const metricLabel = charCount > 0
+    ? `${charCount.toLocaleString()}文字`
+    : entry.segments.length > 0
+    ? `${entry.segments.length}セグメント`
+    : entry.durationMinutes
+    ? `${entry.durationMinutes}分`
+    : '—'
 
   return (
     <div ref={ref} className="px-6 py-0.5">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{toLocaleTime(entry.startTime)} - {toLocaleTime(entry.endTime)}</span>
-        <span className="text-xs text-muted-foreground">{charCount.toLocaleString()}文字</span>
+        <span className="text-xs text-muted-foreground">{metricLabel}</span>
       </div>
       <Tooltip delayDuration={50}>
         <TooltipTrigger asChild>
-          <div className="mt-0.5 flex items-center gap-1.5 cursor-pointer">
+          <div
+            className="mt-0.5 flex items-center gap-1.5 cursor-pointer"
+            onClick={() => onOpenDetails(entry.id)}
+          >
             <p className="text-sm font-semibold text-foreground">{entry.title}</p>
             {entry.analysis?.mood && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">{entry.analysis.mood}</span>
@@ -316,31 +368,25 @@ const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProp
             align="start"
             avoidCollisions={true}
           >
-            {entry.analysis?.summary && (
-              <div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</p>
-                <p className="mt-1 text-sm text-popover-foreground whitespace-pre-wrap leading-relaxed">
-                  {entry.analysis.summary}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Logs</p>
-              {rawLogs.length === 0 ? (
-                <p className="text-xs text-muted-foreground">ログが見つかりませんでした</p>
-              ) : (
-                <ul className="space-y-1">
-                  {rawLogs.map((log, idx) => (
-                    <li key={idx} className="flex gap-2 text-xs text-popover-foreground leading-relaxed">
-                      <span className="text-[10px] font-mono text-muted-foreground min-w-[48px]">
-                        {log.timeLabel ?? '—'}
-                      </span>
-                      <span className="whitespace-pre-wrap">{log.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</p>
+              <p className="mt-1 text-sm text-popover-foreground whitespace-pre-wrap leading-relaxed">
+                {entry.analysis?.summary ?? '詳細は「詳細を見る」から取得できます。'}
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>Duration: {entry.durationMinutes ? `${entry.durationMinutes} min` : '—'}</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onOpenDetails(entry.id)
+                }}
+              >
+                詳細を見る
+              </Button>
             </div>
           </TooltipContent>
         </TooltipPrimitive.Portal>
@@ -353,33 +399,11 @@ TimelineEntryInfo.displayName = 'TimelineEntryInfo'
 
 type TimelineBarProps = {
   entry: TimelineEntry
+  onOpenDetails: (entryId: string) => void
 }
 
-const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
-  const entryTranscript = React.useMemo(() => {
-    const pieces =
-      entry.segments
-        ?.map((segment) => segment.content?.trim())
-        .filter((text): text is string => Boolean(text && text.length > 0)) ?? []
-    if (pieces.length) return pieces.join('\n\n')
-    if (entry.analysis?.summary) return entry.analysis.summary
-    if (entry.analysis?.time_blocks?.length) {
-      return entry.analysis.time_blocks
-        .map((block) => `${block.label}: ${block.details ?? ''}`.trim())
-        .join('\n')
-    }
-    return entry.markdown ?? entry.title ?? ''
-  }, [entry])
-
+const TimelineBar: React.FC<TimelineBarProps> = ({ entry, onOpenDetails }) => {
   const segments = React.useMemo<RenderedSegment[]>(() => {
-    console.log('Processing entry:', {
-      id: entry.id,
-      title: entry.title,
-      startTime: entry.startTime,
-      endTime: entry.endTime,
-      segmentCount: entry.segments?.length || 0
-    })
-
     // If no segments exist, create a single segment from entry times
     if (!entry.segments || entry.segments.length === 0) {
       const midnight = entry.startTime ? startOfDay(entry.startTime) : new Date()
@@ -392,21 +416,16 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
         speakerName: null
       }
       const { left, width } = computeBand(fakeSegment, entry, midnight)
-      console.log('Fake segment dimensions:', { left, width })
       return [{
         ...fakeSegment,
-        preview: entry.title || 'Activity',
         left: `${left}%`,
-        width: `${width}%`,
-        transcript: entryTranscript
+        width: `${width}%`
       }]
     }
-    const rendered = renderSegments(entry, entryTranscript)
-    console.log('Rendered segments:', rendered.length, rendered)
+    const rendered = renderSegments(entry)
 
     // If all segments were invalid, fallback to a single bar
     if (rendered.length === 0) {
-      console.warn('All segments invalid, falling back to entry-level bar')
       const midnight = entry.startTime ? startOfDay(entry.startTime) : new Date()
       const fakeSegment: TimelineSegment = {
         id: entry.id,
@@ -417,20 +436,15 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
         speakerName: null
       }
       const { left, width } = computeBand(fakeSegment, entry, midnight)
-      console.log('Fallback segment dimensions:', { left, width })
       return [{
         ...fakeSegment,
-        preview: entry.title || 'Activity',
         left: `${left}%`,
-        width: `${width}%`,
-        transcript: entryTranscript
+        width: `${width}%`
       }]
     }
 
     return rendered
-  }, [entry, entryTranscript])
-
-  const rawLogs = React.useMemo<RawLogLine[]>(() => buildRawLogs(entry), [entry])
+  }, [entry])
   const analysisSummary = entry.analysis?.summary?.trim()
 
   return (
@@ -450,6 +464,7 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
                   top: '50%',
                   transform: 'translateY(-50%)'
                 }}
+                onClick={() => onOpenDetails(entry.id)}
               />
             </TooltipTrigger>
             <TooltipPrimitive.Portal>
@@ -468,28 +483,137 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ entry }) => {
                     </p>
                   </div>
                 )}
-
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Logs</p>
-                  {rawLogs.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">ログが見つかりませんでした</p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {rawLogs.map((log, index) => (
-                        <li key={index} className="flex gap-2 text-xs text-popover-foreground leading-relaxed">
-                          <span className="text-[10px] font-mono text-muted-foreground min-w-[48px]">
-                            {log.timeLabel ?? `${toLocaleTime(segment.startTime)}-${toLocaleTime(segment.endTime)}`}
-                          </span>
-                          <span className="whitespace-pre-wrap">{log.text}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onOpenDetails(entry.id)
+                  }}
+                >
+                  詳細を見る
+                </Button>
               </TooltipContent>
             </TooltipPrimitive.Portal>
           </Tooltip>
         ))}
+      </div>
+    </div>
+  )
+}
+
+type EntryDetailsDrawerProps = {
+  entryId: string | null
+  onClose: () => void
+}
+
+const EntryDetailsDrawer: React.FC<EntryDetailsDrawerProps> = ({ entryId, onClose }) => {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['timeline-entry', entryId],
+    queryFn: () => fetchTimelineEntry(entryId as string),
+    enabled: Boolean(entryId),
+    staleTime: 5 * 60 * 1000
+  })
+
+  const segmentLogs = React.useMemo(
+    () => (data ? buildRawLogs(data) : []),
+    [data]
+  )
+  const markdownBody = data?.markdown?.trim() ?? ''
+
+  if (!entryId) return null
+
+  return (
+    <div className="fixed inset-0 z-[9999]">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute right-0 top-0 h-full w-full max-w-[540px] border-l border-border/60 bg-background shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/70">Entry Details</p>
+            <h3 className="text-lg font-semibold text-foreground">{data?.title ?? 'Loading...'}</h3>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            閉じる
+          </Button>
+        </div>
+
+        <div className="h-[calc(100%-64px)] overflow-y-auto px-6 py-5 space-y-6">
+          {isLoading && (
+            <div className="rounded-md border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              詳細を読み込み中...
+            </div>
+          )}
+          {error && (
+            <div className="rounded-md border border-border/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              詳細の取得に失敗しました。
+            </div>
+          )}
+
+          {data && (
+            <>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI Summary</p>
+                <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                  {data.analysis?.summary ?? 'AI Summaryはまだ生成されていません。'}
+                </p>
+              </div>
+
+              {data.analysis?.action_items?.length ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Action Items</p>
+                  <ul className="space-y-2 text-sm text-foreground/90">
+                    {data.analysis.action_items.map((item) => (
+                      <li key={item.title} className="rounded-md border border-border/40 px-3 py-2">
+                        <p>{item.title}</p>
+                        {item.suggested_integration && (
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            → {item.suggested_integration}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {data.analysis?.suggestions?.length ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Suggestions</p>
+                  <ul className="space-y-1 text-sm text-foreground/90">
+                    {data.analysis.suggestions.map((suggestion) => (
+                      <li key={suggestion.target}>
+                        {suggestion.target}: <span className="text-muted-foreground">{suggestion.rationale}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Logs</p>
+                {segmentLogs.length > 0 ? (
+                  <ul className="space-y-2 text-sm text-foreground/90">
+                    {segmentLogs.map((log, idx) => (
+                      <li key={idx} className="flex gap-3">
+                        <span className="text-[11px] font-mono text-muted-foreground min-w-[52px]">
+                          {log.timeLabel ?? '—'}
+                        </span>
+                        <span className="whitespace-pre-wrap">{log.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : markdownBody ? (
+                  <pre className="whitespace-pre-wrap rounded-md border border-border/40 bg-muted/20 p-3 text-sm text-foreground/90">
+                    {markdownBody}
+                  </pre>
+                ) : (
+                  <p className="text-sm text-muted-foreground">ログが見つかりませんでした。</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -510,41 +634,21 @@ const groupByDate = (entries: TimelineEntry[]) => {
   }))
 }
 
-const renderSegments = (entry: TimelineEntry, transcript: string): RenderedSegment[] => {
+const renderSegments = (entry: TimelineEntry): RenderedSegment[] => {
   const midnight = entry.startTime ? startOfDay(entry.startTime) : new Date()
-
-  console.log('Entry segments:', entry.segments.map(seg => ({
-    id: seg.id,
-    nodeType: seg.nodeType,
-    contentLength: seg.content?.length || 0,
-    contentPreview: seg.content?.slice(0, 50) || 'NO CONTENT',
-    startTime: seg.startTime,
-    endTime: seg.endTime
-  })))
 
   return entry.segments
     .map((segment) => {
       const { left, width } = computeBand(segment, entry, midnight)
       // Skip segments with invalid dimensions
       if (width <= 0 || left < 0 || left > 100) {
-        console.warn('Invalid segment dimensions:', { left, width, segment })
         return null
       }
-
-      const preview = segment.content?.slice(0, 96) ?? segment.nodeType ?? 'segment'
-      console.log('Segment preview:', {
-        id: segment.id,
-        preview: preview.slice(0, 50),
-        hasContent: !!segment.content,
-        contentLength: segment.content?.length
-      })
 
       return {
         ...segment,
         left: `${left}%`,
-        width: `${Math.max(width, 0.5)}%`, // Minimum 0.5% width
-        preview,
-        transcript
+        width: `${Math.max(width, 0.5)}%` // Minimum 0.5% width
       }
     })
     .filter((seg): seg is RenderedSegment => seg !== null)
@@ -563,14 +667,6 @@ const computeBand = (
 
   // Ensure valid time range
   if (Number.isNaN(startMinutes) || Number.isNaN(endMinutes)) {
-    console.warn('Invalid time calculation:', {
-      segment,
-      entry,
-      startDate,
-      endDate,
-      startMinutes,
-      endMinutes
-    })
     return { left: 0, width: 0 }
   }
 
@@ -594,19 +690,6 @@ const buildRawLogs = (entry: TimelineEntry): RawLogLine[] => {
       })
       .filter((line): line is RawLogLine => line !== null)
   }
-
-  if (entry.markdown && entry.markdown.trim().length > 0) {
-    return entry.markdown
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((text) => ({ text, timeLabel: null }))
-  }
-
-  if (entry.title) {
-    return [{ text: entry.title, timeLabel: null }]
-  }
-
   return []
 }
 
@@ -635,3 +718,26 @@ const percentageMinutes = (date: Date, midnight: Date) => {
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max)
+
+const useInView = (
+  ref: React.RefObject<Element>,
+  options?: IntersectionObserverInit
+) => {
+  const [isInView, setIsInView] = React.useState(false)
+
+  React.useEffect(() => {
+    const node = ref.current
+    if (!node || typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsInView(true)
+      }
+    }, options)
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [ref, options])
+
+  return isInView
+}

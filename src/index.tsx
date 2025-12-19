@@ -11,7 +11,8 @@ import { renderer } from './renderer'
 import type { Env, Bindings } from './env'
 import { withDb } from './middleware/db'
 import { getIntegrationSuggestions } from './services/integrations'
-import { getTimelineSnapshot } from './services/timeline'
+import { getTimelineEntryDetail, getTimelineSnapshot } from './services/timeline'
+import { getDaySummary } from './services/day-summary'
 import {
   analyzeFreshEntries,
   getLastAnalyzedAt
@@ -103,13 +104,14 @@ app.get('/api/health', async (c) => {
 })
 
 app.get('/api/lifelogs', async (c) => {
-  await ensureFreshData(c)
+  queueFreshData(c)
   const db = c.get('db')
   const days = parseInt(c.req.query('days') || '7', 10)
   const offset = parseInt(c.req.query('offset') || '0', 10)
+  const detail = c.req.query('detail') === '1'
 
   const [timelineEntries, lastSyncedAt, lastAnalyzedAt] = await Promise.all([
-    getTimelineSnapshot(db, { days, offset }),
+    getTimelineSnapshot(db, { days, offset, detail, analysisLimit: 4 }),
     getLastSyncedAt(db),
     getLastAnalyzedAt(db)
   ])
@@ -120,6 +122,32 @@ app.get('/api/lifelogs', async (c) => {
     lastAnalyzedAt,
     integrations: getIntegrationSuggestions()
   })
+})
+
+app.get('/api/lifelogs/:entryId', async (c) => {
+  const db = c.get('db')
+  const entryId = c.req.param('entryId')
+  if (!entryId) {
+    return c.json({ ok: false, error: 'Missing entryId' }, 400)
+  }
+
+  const entry = await getTimelineEntryDetail(db, entryId)
+  if (!entry) {
+    return c.json({ ok: false, error: 'Entry not found' }, 404)
+  }
+
+  return c.json(entry)
+})
+
+app.get('/api/day-summary', async (c) => {
+  const db = c.get('db')
+  const date = c.req.query('date')
+  if (!date) {
+    return c.json({ ok: false, error: 'Missing date' }, 400)
+  }
+
+  const summary = await getDaySummary(db, c.env, date)
+  return c.json(summary)
 })
 
 app.get('/api/debug/entries', async (c) => {
@@ -230,13 +258,21 @@ app.post('/api/slack-insights', async (c) => {
 })
 
 app.get('/', renderer, async (c) => {
-  await ensureFreshData(c)
+  queueFreshData(c)
   return c.render(
     <div id="root" class="min-h-screen">
       <noscript>Enable JavaScript to view the dashboard.</noscript>
     </div>
   )
 })
+
+const queueFreshData = (c: Context<Env>) => {
+  c.executionCtx.waitUntil(
+    ensureFreshData(c).catch((error) => {
+      console.error('ensureFreshData failed:', error)
+    })
+  )
+}
 
 const ensureFreshData = async (c: Context<Env>) => {
   const db = c.get('db')
@@ -262,27 +298,26 @@ const ensureFreshData = async (c: Context<Env>) => {
         console.error('Bootstrap sync failed, but continuing with existing D1 data:', error)
       }
       // Analyze entries gradually to avoid rate limits (reduced from 5 to 3)
-      c.executionCtx.waitUntil(
-        analyzeFreshEntries(db, c.env, { limit: 3 }).catch(error => {
-          console.error('Background analysis failed:', error)
-        })
-      )
+      try {
+        await analyzeFreshEntries(db, c.env, { limit: 3 })
+      } catch (error) {
+        console.error('Background analysis failed:', error)
+      }
     } else if (isStale(lastSyncedAt, 60)) {
       // Background sync and analysis - errors won't affect page rendering
-      c.executionCtx.waitUntil(
-        syncLifelogs(db, c.env)
-          .then(() => analyzeFreshEntries(db, c.env, { limit: 2 }))
-          .catch(error => {
-            console.error('Background sync/analysis failed:', error)
-          })
-      )
+      try {
+        await syncLifelogs(db, c.env)
+        await analyzeFreshEntries(db, c.env, { limit: 2 })
+      } catch (error) {
+        console.error('Background sync/analysis failed:', error)
+      }
     } else {
       // Even if sync is fresh, analyze any entries that need it
-      c.executionCtx.waitUntil(
-        analyzeFreshEntries(db, c.env, { limit: 1 }).catch(error => {
-          console.error('Background analysis failed:', error)
-        })
-      )
+      try {
+        await analyzeFreshEntries(db, c.env, { limit: 1 })
+      } catch (error) {
+        console.error('Background analysis failed:', error)
+      }
     }
   }
 
