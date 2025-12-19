@@ -218,9 +218,12 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
                 className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm"
               >
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-foreground/10 text-[10px] font-semibold text-foreground">
-                    LL
-                  </span>
+                  <img
+                    src="/images/kazuph-avatar.png"
+                    alt="Kazuph avatar"
+                    className="h-7 w-7 rounded-full object-cover border border-border/40"
+                    loading="lazy"
+                  />
                   <div className="flex flex-col">
                     <span className="text-foreground/90">Limitless Daily</span>
                     <span>@lifelog</span>
