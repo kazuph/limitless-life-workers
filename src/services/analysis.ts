@@ -10,7 +10,9 @@ import { getSyncStateValue, upsertSyncState } from './state'
 import type { AnalysisJSON } from '../types/analysis'
 import { logAnalysisEvent } from './analysis-log'
 
-const MODEL = '@cf/openai/gpt-oss-20b'
+const MODEL = '@cf/openai/gpt-oss-120b'
+const GEMINI_MODEL = 'gemini-2.0-flash'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 const ANALYSIS_VERSION = 'v1'
 const LAST_ANALYZED_KEY = 'lifelog:lastAnalyzedAt'
 const SYSTEM_PROMPT =
@@ -77,6 +79,67 @@ ${SCHEMA_TEXT}
 
 Analyze the following lifelog JSON and respond strictly with the requested schema:
 ${payload}`
+
+const analyzeWithGeminiFallback = async (
+  payload: string,
+  env: Bindings
+): Promise<AnalysisJSON | null> => {
+  const apiKey = env.GEMINI_API_KEY
+  if (!apiKey) return null
+
+  const prompt = buildAnalysisPrompt(payload)
+
+  try {
+    const response = await fetch(
+      `${GEMINI_API_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.4,
+            maxOutputTokens: 4096
+          }
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Gemini analysis fallback error:', response.status, errorText)
+      return null
+    }
+
+    const result = await response.json() as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            text?: string
+          }>
+        }
+      }>
+    }
+
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!text) {
+      console.error('No text in Gemini fallback response')
+      return null
+    }
+
+    return tryParseAnalysisJson(text)
+  } catch (error) {
+    console.error('Gemini fallback failed:', error)
+    return null
+  }
+}
 
 const tryParseAnalysisJson = (raw: string): AnalysisJSON | null => {
   try {
@@ -257,6 +320,7 @@ export const analyzeFreshEntries = async (
       let response = await env.AI.run(MODEL, primaryRequest)
       let serialized = extractResponsePayload(response)
       let parsed = tryParseAnalysisJson(serialized)
+      let modelUsed = MODEL
 
       if (!parsed) {
         response = await env.AI.run(MODEL, {
@@ -267,13 +331,21 @@ export const analyzeFreshEntries = async (
         parsed = tryParseAnalysisJson(serialized)
       }
 
+      if (!parsed) {
+        const geminiParsed = await analyzeWithGeminiFallback(promptPayload, env)
+        if (geminiParsed) {
+          parsed = geminiParsed
+          modelUsed = GEMINI_MODEL
+        }
+      }
+
       const analysisJson = parsed ?? ensureAnalysisJson(serialized)
 
       await db
         .insert(lifelogAnalyses)
         .values({
           entryId: entry.id,
-          model: MODEL,
+          model: modelUsed,
           version: ANALYSIS_VERSION,
           payloadHash: entry.summaryHash ?? undefined,
           insightsJson: JSON.stringify(analysisJson)
@@ -281,7 +353,7 @@ export const analyzeFreshEntries = async (
         .onConflictDoUpdate({
           target: [lifelogAnalyses.entryId, lifelogAnalyses.version],
           set: {
-            model: MODEL,
+            model: modelUsed,
             payloadHash: entry.summaryHash ?? undefined,
             insightsJson: JSON.stringify(analysisJson),
             createdAt: new Date().toISOString()
@@ -296,7 +368,7 @@ export const analyzeFreshEntries = async (
       await logAnalysisEvent(db, {
         entryId: entry.id,
         status: 'success',
-        details: `Workers AI analysis stored (${MODEL})`
+        details: `Analysis stored (${modelUsed})`
       })
 
       analyzedIds.push(entry.id)

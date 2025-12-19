@@ -143,7 +143,7 @@ export const App: React.FC = () => {
                   </p>
                 </div>
                 <span className="text-xs text-muted-foreground/50">
-                  Workers AI gpt-oss-20b
+                  Workers AI gpt-oss-120b
                 </span>
               </div>
               <InsightsGrid entries={allEntries} />

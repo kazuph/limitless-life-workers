@@ -4,7 +4,9 @@ import { lifelogAnalyses, lifelogEntries, lifelogSegments } from '../db/schema'
 import type { Bindings } from '../env'
 import { getSyncStateValue, upsertSyncState } from './state'
 
-const MODEL = '@cf/openai/gpt-oss-20b'
+const MODEL = '@cf/openai/gpt-oss-120b'
+const GEMINI_MODEL = 'gemini-2.0-flash'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 const SUMMARY_KEY_PREFIX = 'day_summary:'
 
 export type DaySummary = {
@@ -98,6 +100,80 @@ const tryParseTweets = (raw: string): string[] | null => {
     } catch {
       return null
     }
+  }
+}
+
+const generateWithGemini = async (
+  promptPayload: string,
+  env: Bindings,
+  date: string
+): Promise<DaySummary | null> => {
+  const apiKey = env.GEMINI_API_KEY
+  if (!apiKey) {
+    return null
+  }
+
+  const prompt = buildSummaryPrompt(promptPayload)
+
+  try {
+    const response = await fetch(
+      `${GEMINI_API_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.4,
+            maxOutputTokens: 1024
+          }
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Gemini day-summary API error:', response.status, errorText)
+      return null
+    }
+
+    const result = await response.json() as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            text?: string
+          }>
+        }
+      }>
+    }
+
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!text) {
+      console.error('No text in Gemini day-summary response')
+      return null
+    }
+
+    const tweets = tryParseTweets(text) ?? []
+    if (!tweets.length) return null
+
+    const now = new Date().toISOString()
+    return {
+      date,
+      tweets,
+      generatedAt: now,
+      source: 'generated',
+      model: GEMINI_MODEL
+    }
+  } catch (error) {
+    console.error('Gemini day-summary failed:', error)
+    return null
   }
 }
 
@@ -203,6 +279,13 @@ const summarizeFromEntries = async (
     const summaryText = extractResponsePayload(response).trim()
     const tweets = tryParseTweets(summaryText) ?? []
 
+    if (!tweets.length) {
+      const gemini = await generateWithGemini(promptPayload, env, date)
+      if (gemini) {
+        return gemini
+      }
+    }
+
     return {
       date,
       tweets,
@@ -212,6 +295,10 @@ const summarizeFromEntries = async (
     }
   } catch (error) {
     console.error('day summary generation failed', { date, error })
+    const gemini = await generateWithGemini(promptPayload, env, date)
+    if (gemini) {
+      return gemini
+    }
     return {
       date,
       tweets: [],
