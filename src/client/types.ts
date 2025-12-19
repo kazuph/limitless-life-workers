@@ -31,9 +31,14 @@ export type IntegrationSuggestion = {
   target: string
 }
 
+export type DayTweet = {
+  text: string
+  time?: string | null
+}
+
 export type DaySummary = {
   date: string
-  tweets: string[]
+  tweets: DayTweet[]
   generatedAt: string
   source: 'cached' | 'generated' | 'unavailable'
   model?: string

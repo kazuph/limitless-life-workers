@@ -70,7 +70,7 @@ export const App: React.FC = () => {
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="space-y-2">
               <h1 className="text-4xl font-bold tracking-tight text-foreground">
-                Limitless Life Log
+                Life Log
               </h1>
               <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground/80">
                 Activity Timeline
@@ -82,7 +82,7 @@ export const App: React.FC = () => {
                 disabled={syncing}
                 className="bg-foreground text-background hover:bg-foreground/90"
               >
-                {syncing ? 'Requesting…' : 'Request Limitless API'}
+                {syncing ? 'Requesting…' : 'Request Sync'}
               </Button>
               <div className="flex items-center gap-4 text-xs text-muted-foreground/70">
                 <span>Last sync: {formatTimestamp(state.lastSyncedAt)}</span>

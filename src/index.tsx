@@ -157,7 +157,9 @@ app.post('/api/day-summary/regenerate', async (c) => {
     return c.json({ ok: false, error: 'Missing date' }, 400)
   }
 
-  const summary = await regenerateDaySummary(db, c.env, date)
+  const provider = c.req.query('provider')
+  const preferredModel = provider === 'gemini' ? 'gemini' : provider === 'openai' ? 'openai' : undefined
+  const summary = await regenerateDaySummary(db, c.env, date, preferredModel)
   return c.json(summary)
 })
 

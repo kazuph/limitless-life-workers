@@ -81,7 +81,7 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
   })
 
   const regenerateSummary = useMutation({
-    mutationFn: () => regenerateDaySummary(date),
+    mutationFn: (provider: 'openai' | 'gemini') => regenerateDaySummary(date, provider),
     onSuccess: (data) => {
       queryClient.setQueryData(['day-summary', date], data)
     }
@@ -212,11 +212,45 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
         ref={headerRef}
         className="border-b border-border/40 bg-card/95 px-6 py-4 dark:bg-background/95 flex-shrink-0"
       >
-        <div className="flex items-center gap-3">
-          <span className="text-lg font-bold text-foreground">{date}</span>
-          <span className="rounded-md border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-            {items.length} {items.length === 1 ? 'entry' : 'entries'}
-          </span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-lg font-bold text-foreground">{date}</span>
+            <span className="rounded-md border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
+              {items.length} {items.length === 1 ? 'entry' : 'entries'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="GPT-OSS-120Bで日次ツイートを再生成"
+              title="GPT-OSS-120Bで日次ツイートを再生成"
+              onClick={() => regenerateSummary.mutate('openai')}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/90 shadow-sm transition hover:bg-muted/40 disabled:opacity-60"
+              disabled={regenerateSummary.isPending}
+            >
+              <img
+                src="/images/openai-icon.svg"
+                alt="GPT-OSS"
+                className="h-4 w-4 rounded-full"
+                loading="lazy"
+              />
+            </button>
+            <button
+              type="button"
+              aria-label="Gemini 2.0 Flashで日次ツイートを再生成"
+              title="Gemini 2.0 Flashで日次ツイートを再生成"
+              onClick={() => regenerateSummary.mutate('gemini')}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/90 shadow-sm transition hover:bg-muted/40 disabled:opacity-60"
+              disabled={regenerateSummary.isPending}
+            >
+              <img
+                src="/images/gemini-icon.svg"
+                alt="Gemini"
+                className="h-4 w-4 rounded-full"
+                loading="lazy"
+              />
+            </button>
+          </div>
         </div>
         {daySummary?.tweets?.length ? (
           <div className="relative mt-3">
@@ -234,34 +268,20 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
                       loading="lazy"
                     />
                     <div className="flex flex-col">
-                      <span className="text-foreground/90">Limitless Daily</span>
-                      <span>@lifelog</span>
+                      <span className="text-foreground/90">Daily Memo</span>
+                      <span>@kazuph</span>
                     </div>
                   </div>
                   <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {tweet}
+                    {tweet.text}
                   </p>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
-                    <span>{date}</span>
+                    <span>{tweet.time ? `${date} ${tweet.time}` : date}</span>
                     <span>{daySummary.source === 'generated' ? 'generated' : 'cached'}</span>
                   </div>
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              aria-label="ツイートを再生成"
-              onClick={() => regenerateSummary.mutate()}
-              className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/90 shadow-sm transition hover:bg-muted/40 disabled:opacity-60"
-              disabled={regenerateSummary.isPending}
-            >
-              <img
-                src="/images/gemini-icon.svg"
-                alt="Gemini"
-                className="h-4 w-4 rounded-full"
-                loading="lazy"
-              />
-            </button>
           </div>
         ) : summaryLoading ? (
           <p className="mt-2 text-xs text-muted-foreground/70">サマリー生成中...</p>

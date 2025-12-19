@@ -9,16 +9,23 @@ const GEMINI_MODEL = 'gemini-2.0-flash'
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 const SUMMARY_KEY_PREFIX = 'day_summary:'
 
+export type DayTweet = {
+  text: string
+  time: string
+}
+
 export type DaySummary = {
   date: string
-  tweets: string[]
+  tweets: DayTweet[]
   generatedAt: string
   source: 'cached' | 'generated' | 'unavailable'
   model?: string
 }
 
+type PreferredProvider = 'openai' | 'gemini'
+
 type StoredSummary = {
-  tweets: string[]
+  tweets: Array<string | DayTweet>
   generatedAt: string
   model?: string
 }
@@ -103,6 +110,65 @@ const tryParseTweets = (raw: string): string[] | null => {
   }
 }
 
+const formatJstTime = (value: Date) =>
+  value.toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Tokyo'
+  })
+
+const buildFallbackTimes = (date: string, count: number, generatedAt?: string) => {
+  const base = generatedAt ? new Date(generatedAt) : new Date(`${date}T12:00:00+09:00`)
+  const times: string[] = []
+  for (let i = 0; i < count; i += 1) {
+    const stamp = new Date(base.getTime() + i * 2 * 60 * 60 * 1000)
+    times.push(formatJstTime(stamp))
+  }
+  return times
+}
+
+const buildTweetTimes = (
+  items: Array<{ startTime: string | null; endTime: string | null }>,
+  count: number,
+  date: string
+) => {
+  const times = items
+    .map((item) => item.startTime ?? item.endTime)
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new Date(value))
+    .filter((value) => !Number.isNaN(value.getTime()))
+  if (!times.length) {
+    return buildFallbackTimes(date, count)
+  }
+  const min = times.reduce((a, b) => (a.getTime() < b.getTime() ? a : b))
+  const max = times.reduce((a, b) => (a.getTime() > b.getTime() ? a : b))
+  const span = Math.max(max.getTime() - min.getTime(), 60 * 60 * 1000)
+  const result: string[] = []
+  for (let i = 0; i < count; i += 1) {
+    const ratio = count === 1 ? 0.5 : i / Math.max(count - 1, 1)
+    const stamp = new Date(min.getTime() + span * ratio)
+    result.push(formatJstTime(stamp))
+  }
+  return result
+}
+
+const normalizeStoredTweets = (
+  tweets: Array<string | DayTweet>,
+  date: string,
+  generatedAt?: string
+): DayTweet[] => {
+  if (!tweets.length) return []
+  if (typeof tweets[0] === 'string') {
+    const times = buildFallbackTimes(date, tweets.length, generatedAt)
+    return (tweets as string[]).map((text, index) => ({
+      text,
+      time: times[index] ?? times[times.length - 1]
+    }))
+  }
+  return tweets as DayTweet[]
+}
+
 const generateWithGemini = async (
   promptPayload: string,
   env: Bindings,
@@ -164,9 +230,13 @@ const generateWithGemini = async (
     if (!tweets.length) return null
 
     const now = new Date().toISOString()
+    const times = buildFallbackTimes(date, tweets.length, now)
     return {
       date,
-      tweets,
+      tweets: tweets.map((tweet, index) => ({
+        text: tweet,
+        time: times[index] ?? times[times.length - 1]
+      })),
       generatedAt: now,
       source: 'generated',
       model: GEMINI_MODEL
@@ -180,7 +250,8 @@ const generateWithGemini = async (
 const summarizeFromEntries = async (
   db: Database,
   env: Bindings,
-  date: string
+  date: string,
+  opts: { preferredModel?: PreferredProvider } = {}
 ): Promise<DaySummary> => {
   const range = parseDateRange(date)
   const now = new Date().toISOString()
@@ -255,14 +326,25 @@ const summarizeFromEntries = async (
   })
 
   const promptPayload = JSON.stringify({ date, items })
+  const preferredModel = opts.preferredModel ?? 'openai'
+  const allowGeminiFallback = preferredModel !== 'gemini'
+
+  if (preferredModel === 'gemini') {
+    const gemini = await generateWithGemini(promptPayload, env, date)
+    if (gemini) {
+      return gemini
+    }
+  }
+
   try {
     const response = await env.AI.run(MODEL, {
       input: buildSummaryPrompt(promptPayload)
     })
     const summaryText = extractResponsePayload(response).trim()
     const tweets = tryParseTweets(summaryText) ?? []
+    const times = tweets.length ? buildTweetTimes(items, tweets.length, date) : []
 
-    if (!tweets.length) {
+    if (!tweets.length && allowGeminiFallback) {
       const gemini = await generateWithGemini(promptPayload, env, date)
       if (gemini) {
         return gemini
@@ -271,16 +353,21 @@ const summarizeFromEntries = async (
 
     return {
       date,
-      tweets,
+      tweets: tweets.map((tweet, index) => ({
+        text: tweet,
+        time: times[index] ?? times[times.length - 1]
+      })),
       generatedAt: now,
       source: tweets.length ? 'generated' : 'unavailable',
       model: MODEL
     }
   } catch (error) {
     console.error('day summary generation failed', { date, error })
-    const gemini = await generateWithGemini(promptPayload, env, date)
-    if (gemini) {
-      return gemini
+    if (allowGeminiFallback) {
+      const gemini = await generateWithGemini(promptPayload, env, date)
+      if (gemini) {
+        return gemini
+      }
     }
     return {
       date,
@@ -295,7 +382,7 @@ export const getDaySummary = async (
   db: Database,
   env: Bindings,
   date: string,
-  opts: { force?: boolean } = {}
+  opts: { force?: boolean; preferredModel?: PreferredProvider } = {}
 ): Promise<DaySummary> => {
   const key = `${SUMMARY_KEY_PREFIX}${date}`
   if (opts.force) {
@@ -308,7 +395,7 @@ export const getDaySummary = async (
       if (parsed.tweets && parsed.tweets.length > 0) {
         return {
           date,
-          tweets: parsed.tweets,
+          tweets: normalizeStoredTweets(parsed.tweets, date, parsed.generatedAt),
           generatedAt: parsed.generatedAt,
           source: 'cached',
           model: parsed.model
@@ -319,7 +406,9 @@ export const getDaySummary = async (
     }
   }
 
-  const generated = await summarizeFromEntries(db, env, date)
+  const generated = await summarizeFromEntries(db, env, date, {
+    preferredModel: opts.preferredModel
+  })
   const stored: StoredSummary = {
     tweets: generated.tweets,
     generatedAt: generated.generatedAt,
@@ -332,5 +421,6 @@ export const getDaySummary = async (
 export const regenerateDaySummary = async (
   db: Database,
   env: Bindings,
-  date: string
-): Promise<DaySummary> => getDaySummary(db, env, date, { force: true })
+  date: string,
+  preferredModel?: PreferredProvider
+): Promise<DaySummary> => getDaySummary(db, env, date, { force: true, preferredModel })

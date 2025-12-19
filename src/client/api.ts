@@ -56,15 +56,19 @@ export const fetchDaySummary = async (date: string) => {
   }
   return (await response.json()) as {
     date: string
-    tweets: string[]
+    tweets: Array<{ text: string; time?: string | null }>
     generatedAt: string
     source: 'cached' | 'generated' | 'unavailable'
     model?: string
   }
 }
 
-export const regenerateDaySummary = async (date: string) => {
-  const response = await fetch(`/api/day-summary/regenerate?date=${encodeURIComponent(date)}`, {
+export const regenerateDaySummary = async (date: string, provider?: 'openai' | 'gemini') => {
+  const params = new URLSearchParams({ date })
+  if (provider) {
+    params.set('provider', provider)
+  }
+  const response = await fetch(`/api/day-summary/regenerate?${params.toString()}`, {
     method: 'POST',
     headers: buildHeaders()
   })
@@ -73,7 +77,7 @@ export const regenerateDaySummary = async (date: string) => {
   }
   return (await response.json()) as {
     date: string
-    tweets: string[]
+    tweets: Array<{ text: string; time?: string | null }>
     generatedAt: string
     source: 'cached' | 'generated' | 'unavailable'
     model?: string
