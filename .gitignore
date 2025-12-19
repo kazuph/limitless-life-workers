@@ -34,6 +34,15 @@ lerna-debug.log*
 # misc
 .DS_Store
 
+# cache
+.npm-cache/
+
+# artifacts (screenshots, videos, evidence)
+.artifacts/
+
+# skills (temporary directories)
+obsidian-knowledge-synthesizer/
+
 # test
 test-results/
 playwright-report/
