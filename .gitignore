@@ -39,6 +39,7 @@ lerna-debug.log*
 
 # artifacts (screenshots, videos, evidence)
 .artifacts/
+.reports/
 
 # skills (temporary directories)
 obsidian-knowledge-synthesizer/
