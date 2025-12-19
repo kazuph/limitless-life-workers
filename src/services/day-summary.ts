@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, lt } from 'drizzle-orm'
 import type { Database } from '../db/client'
 import { lifelogAnalyses, lifelogEntries, lifelogSegments } from '../db/schema'
 import type { Bindings } from '../env'
-import { getSyncStateValue, upsertSyncState } from './state'
+import { deleteSyncStateKey, getSyncStateValue, upsertSyncState } from './state'
 
 const MODEL = '@cf/openai/gpt-oss-120b'
 const GEMINI_MODEL = 'gemini-2.0-flash'
@@ -311,9 +311,13 @@ const summarizeFromEntries = async (
 export const getDaySummary = async (
   db: Database,
   env: Bindings,
-  date: string
+  date: string,
+  opts: { force?: boolean } = {}
 ): Promise<DaySummary> => {
   const key = `${SUMMARY_KEY_PREFIX}${date}`
+  if (opts.force) {
+    await deleteSyncStateKey(db, key)
+  }
   const cached = await getSyncStateValue(db, key)
   if (cached) {
     try {
@@ -341,3 +345,9 @@ export const getDaySummary = async (
   await upsertSyncState(db, key, JSON.stringify(stored))
   return generated
 }
+
+export const regenerateDaySummary = async (
+  db: Database,
+  env: Bindings,
+  date: string
+): Promise<DaySummary> => getDaySummary(db, env, date, { force: true })

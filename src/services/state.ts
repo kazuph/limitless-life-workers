@@ -19,3 +19,7 @@ export const upsertSyncState = async (db: Database, key: string, value: string) 
       }
     })
 }
+
+export const deleteSyncStateKey = async (db: Database, key: string) => {
+  await db.delete(syncState).where(eq(syncState.key, key))
+}

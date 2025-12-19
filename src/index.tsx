@@ -12,7 +12,7 @@ import type { Env, Bindings } from './env'
 import { withDb } from './middleware/db'
 import { getIntegrationSuggestions } from './services/integrations'
 import { getTimelineEntryDetail, getTimelineSnapshot } from './services/timeline'
-import { getDaySummary } from './services/day-summary'
+import { getDaySummary, regenerateDaySummary } from './services/day-summary'
 import {
   analyzeFreshEntries,
   getLastAnalyzedAt
@@ -147,6 +147,17 @@ app.get('/api/day-summary', async (c) => {
   }
 
   const summary = await getDaySummary(db, c.env, date)
+  return c.json(summary)
+})
+
+app.post('/api/day-summary/regenerate', async (c) => {
+  const db = c.get('db')
+  const date = c.req.query('date')
+  if (!date) {
+    return c.json({ ok: false, error: 'Missing date' }, 400)
+  }
+
+  const summary = await regenerateDaySummary(db, c.env, date)
   return c.json(summary)
 })
 

@@ -1,7 +1,7 @@
 import * as React from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { DaySummary, TimelineEntry, TimelineSegment } from '../types'
-import { fetchDaySummary, fetchTimelineEntry } from '../api'
+import { fetchDaySummary, fetchTimelineEntry, regenerateDaySummary, triggerAnalysis } from '../api'
 import { formatDateLabel, toLocaleTime } from '../lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
@@ -66,6 +66,7 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
   const rightScrollRef = React.useRef<HTMLDivElement>(null)
   const entryRefs = React.useRef<Map<string, HTMLDivElement>>(new Map())
   const headerRef = React.useRef<HTMLDivElement>(null)
+  const queryClient = useQueryClient()
   const [isSyncing, setIsSyncing] = React.useState(false)
   const [isAutoScrolling, setIsAutoScrolling] = React.useState(false)
   const observerOptions = React.useMemo(() => ({ rootMargin: '200px' }), [])
@@ -77,6 +78,13 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
     enabled: isHeaderVisible,
     staleTime: 6 * 60 * 60 * 1000,
     refetchOnWindowFocus: false
+  })
+
+  const regenerateSummary = useMutation({
+    mutationFn: () => regenerateDaySummary(date),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['day-summary', date], data)
+    }
   })
 
   const syncScroll = (source: 'left' | 'right') => {
@@ -211,33 +219,49 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
           </span>
         </div>
         {daySummary?.tweets?.length ? (
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {daySummary.tweets.slice(0, 3).map((tweet, index) => (
-              <div
-                key={`${date}-tweet-${index}`}
-                className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm"
-              >
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <img
-                    src="/images/kazuph-avatar.png"
-                    alt="Kazuph avatar"
-                    className="h-7 w-7 rounded-full object-cover border border-border/40"
-                    loading="lazy"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-foreground/90">Limitless Daily</span>
-                    <span>@lifelog</span>
+          <div className="relative mt-3">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {daySummary.tweets.slice(0, 3).map((tweet, index) => (
+                <div
+                  key={`${date}-tweet-${index}`}
+                  className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm"
+                >
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <img
+                      src="/images/kazuph-avatar.png"
+                      alt="Kazuph avatar"
+                      className="h-7 w-7 rounded-full object-cover border border-border/40"
+                      loading="lazy"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-foreground/90">Limitless Daily</span>
+                      <span>@lifelog</span>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                    {tweet}
+                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
+                    <span>{date}</span>
+                    <span>{daySummary.source === 'generated' ? 'generated' : 'cached'}</span>
                   </div>
                 </div>
-                <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                  {tweet}
-                </p>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
-                  <span>{date}</span>
-                  <span>{daySummary.source === 'generated' ? 'generated' : 'cached'}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <button
+              type="button"
+              aria-label="ツイートを再生成"
+              onClick={() => regenerateSummary.mutate()}
+              className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/90 shadow-sm transition hover:bg-muted/40 disabled:opacity-60"
+              disabled={regenerateSummary.isPending}
+            >
+              <img
+                src="/images/gemini-icon.svg"
+                alt="Gemini"
+                className="h-4 w-4 rounded-full"
+                loading="lazy"
+              />
+            </button>
           </div>
         ) : summaryLoading ? (
           <p className="mt-2 text-xs text-muted-foreground/70">サマリー生成中...</p>
@@ -512,11 +536,16 @@ type EntryDetailsDrawerProps = {
 }
 
 const EntryDetailsDrawer: React.FC<EntryDetailsDrawerProps> = ({ entryId, onClose }) => {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['timeline-entry', entryId],
     queryFn: () => fetchTimelineEntry(entryId as string),
     enabled: Boolean(entryId),
     staleTime: 5 * 60 * 1000
+  })
+
+  const analysisMutation = useMutation({
+    mutationFn: () => triggerAnalysis(entryId as string),
+    onSuccess: () => refetch()
   })
 
   const segmentLogs = React.useMemo(
@@ -560,6 +589,22 @@ const EntryDetailsDrawer: React.FC<EntryDetailsDrawerProps> = ({ entryId, onClos
                 <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
                   {data.analysis?.summary ?? 'AI Summaryはまだ生成されていません。'}
                 </p>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    aria-label="AIサマリーを再生成"
+                    onClick={() => analysisMutation.mutate()}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-background/90 shadow-sm transition hover:bg-muted/40 disabled:opacity-60"
+                    disabled={analysisMutation.isPending}
+                  >
+                    <img
+                      src="/images/openai-icon.svg"
+                      alt="ChatGPT"
+                      className="h-4 w-4 rounded-full"
+                      loading="lazy"
+                    />
+                  </button>
+                </div>
               </div>
 
               {data.analysis?.action_items?.length ? (

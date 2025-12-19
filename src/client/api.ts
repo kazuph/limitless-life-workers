@@ -63,6 +63,23 @@ export const fetchDaySummary = async (date: string) => {
   }
 }
 
+export const regenerateDaySummary = async (date: string) => {
+  const response = await fetch(`/api/day-summary/regenerate?date=${encodeURIComponent(date)}`, {
+    method: 'POST',
+    headers: buildHeaders()
+  })
+  if (!response.ok) {
+    throw new Error('Failed to regenerate day summary')
+  }
+  return (await response.json()) as {
+    date: string
+    tweets: string[]
+    generatedAt: string
+    source: 'cached' | 'generated' | 'unavailable'
+    model?: string
+  }
+}
+
 export const triggerSync = async () => {
   const response = await fetch('/api/sync', {
     method: 'POST',
