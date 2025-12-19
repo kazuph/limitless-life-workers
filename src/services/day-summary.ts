@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, inArray, lt } from 'drizzle-orm'
+import { and, desc, eq, gte, lt } from 'drizzle-orm'
 import type { Database } from '../db/client'
-import { lifelogAnalyses, lifelogEntries, lifelogSegments } from '../db/schema'
+import { lifelogAnalyses, lifelogEntries } from '../db/schema'
 import type { Bindings } from '../env'
 import { deleteSyncStateKey, getSyncStateValue, upsertSyncState } from './state'
 
@@ -217,23 +217,6 @@ const summarizeFromEntries = async (
     .limit(120)
 
   if (!entries.length) {
-    return {
-      date,
-      tweets: [],
-      generatedAt: now,
-      source: 'unavailable'
-    }
-  }
-
-  const entryIds = entries.map((entry) => entry.id)
-  const hasSegments = await db
-    .select({ id: lifelogSegments.entryId })
-    .from(lifelogSegments)
-    .where(inArray(lifelogSegments.entryId, entryIds))
-    .limit(1)
-    .then((rows) => rows.length > 0)
-
-  if (!hasSegments) {
     return {
       date,
       tweets: [],

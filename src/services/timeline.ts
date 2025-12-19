@@ -116,6 +116,16 @@ export const getTimelineSnapshot = async (
             speakerName: segment.speakerName ?? null
           }))
       : []
+    const fallbackSegments = detail && entrySegments.length === 0 && entry.markdown
+      ? [{
+          id: `${entry.id}:markdown`,
+          content: entry.markdown ?? null,
+          startTime: entry.startTime ?? null,
+          endTime: entry.endTime ?? null,
+          nodeType: 'markdown',
+          speakerName: null
+        }]
+      : entrySegments
 
     return {
       id: entry.id,
@@ -124,7 +134,7 @@ export const getTimelineSnapshot = async (
       endTime: entry.endTime ?? null,
       dateLabel: entry.startTime ? formatLocalDate(entry.startTime) : null,
       durationMinutes: computeDuration(entry.startTime, entry.endTime),
-      segments: entrySegments,
+      segments: fallbackSegments,
       markdown: entry.markdown ?? null,
       analysis: analysisMap.get(entry.id) ?? null
     } satisfies TimelineEntryDTO
@@ -190,6 +200,16 @@ export const getTimelineEntryDetail = async (
     nodeType: segment.nodeType ?? null,
     speakerName: segment.speakerName ?? null
   }))
+  const fallbackSegments = entrySegments.length === 0 && entry.markdown
+    ? [{
+        id: `${entry.id}:markdown`,
+        content: entry.markdown ?? null,
+        startTime: entry.startTime ?? null,
+        endTime: entry.endTime ?? null,
+        nodeType: 'markdown',
+        speakerName: null
+      }]
+    : entrySegments
 
   return {
     id: entry.id,
@@ -198,7 +218,7 @@ export const getTimelineEntryDetail = async (
     endTime: entry.endTime ?? null,
     dateLabel: entry.startTime ? formatLocalDate(entry.startTime) : null,
     durationMinutes: computeDuration(entry.startTime, entry.endTime),
-    segments: entrySegments,
+    segments: fallbackSegments,
     markdown: entry.markdown ?? null,
     analysis
   }
