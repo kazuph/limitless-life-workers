@@ -206,11 +206,11 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
 
 
   return (
-    <div className="max-h-[600px] rounded-xl border-2 border-border bg-card/50 overflow-hidden flex flex-col">
-      {/* Card header with date and entry count */}
+    <div className="max-h-[700px] rounded-xl border-2 border-border bg-card/50 overflow-hidden flex flex-col">
+      {/* Card header with date, entry count, and tweet summaries - compact */}
       <div
         ref={headerRef}
-        className="border-b border-border/40 bg-card/95 px-6 py-4 dark:bg-background/95 flex-shrink-0"
+        className="border-b border-border/40 bg-card/95 px-6 py-3 dark:bg-background/95 flex-shrink-0"
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -254,33 +254,33 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
         </div>
         {daySummary?.tweets?.length ? (
           <div className="relative mt-3">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {daySummary.tweets.slice(0, 3).map((tweet, index) => (
-                <div
-                  key={`${date}-tweet-${index}`}
-                  className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm"
-                >
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {/* 2-column grid with horizontal scroll */}
+            <div className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+              <div className="grid grid-rows-2 grid-flow-col gap-2 w-max">
+                {daySummary.tweets.map((tweet, index) => (
+                  <div
+                    key={`${date}-tweet-${index}`}
+                    className="flex items-start gap-2 rounded-lg border border-border/50 bg-background/80 px-3 py-2 shadow-sm w-[280px]"
+                  >
                     <img
                       src="/images/kazuph-avatar.png"
                       alt="Kazuph avatar"
-                      className="h-7 w-7 rounded-full object-cover border border-border/40"
+                      className="h-6 w-6 rounded-full object-cover border border-border/40 flex-shrink-0"
                       loading="lazy"
                     />
-                    <div className="flex flex-col">
-                      <span className="text-foreground/90">Daily Memo</span>
-                      <span>@kazuph</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <span className="text-foreground/90 font-medium">Daily Memo</span>
+                        <span className="text-muted-foreground/70">@kazuph</span>
+                        <span className="ml-auto">{tweet.time || ''}</span>
+                      </div>
+                      <p className="text-xs leading-snug text-foreground/90 whitespace-pre-wrap mt-0.5">
+                        {tweet.text}
+                      </p>
                     </div>
                   </div>
-                  <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {tweet.text}
-                  </p>
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
-                    <span>{tweet.time ? `${date} ${tweet.time}` : date}</span>
-                    <span>{daySummary.source === 'generated' ? 'generated' : 'cached'}</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         ) : summaryLoading ? (
@@ -389,55 +389,38 @@ const TimelineEntryInfo = React.forwardRef<HTMLDivElement, TimelineEntryInfoProp
     ? `${entry.durationMinutes}分`
     : '—'
 
+  // Build logs for tooltip display
+  const segmentLogs = React.useMemo(() => {
+    if (!entry.segments || entry.segments.length === 0) return []
+    return entry.segments
+      .map((segment) => {
+        const text = segment.content?.trim()
+        if (!text) return null
+        return {
+          text,
+          timeLabel: segment.startTime ? toLocaleTime(segment.startTime) : null
+        }
+      })
+      .filter((log): log is { text: string; timeLabel: string | null } => log !== null)
+      .slice(0, 10) // Show first 10 logs in tooltip
+  }, [entry.segments])
+
   return (
-    <div ref={ref} className="px-6 py-0.5">
+    <div
+      ref={ref}
+      className="px-6 py-0.5 cursor-pointer hover:bg-muted/30 transition-colors"
+      onMouseEnter={() => onOpenDetails(entry.id)}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{toLocaleTime(entry.startTime)} - {toLocaleTime(entry.endTime)}</span>
         <span className="text-xs text-muted-foreground">{metricLabel}</span>
       </div>
-      <Tooltip delayDuration={50}>
-        <TooltipTrigger asChild>
-          <div
-            className="mt-0.5 flex items-center gap-1.5 cursor-pointer"
-            onClick={() => onOpenDetails(entry.id)}
-          >
-            <p className="text-sm font-semibold text-foreground">{entry.title}</p>
-            {entry.analysis?.mood && (
-              <span className="text-xs text-muted-foreground whitespace-nowrap">{entry.analysis.mood}</span>
-            )}
-          </div>
-        </TooltipTrigger>
-        <TooltipPrimitive.Portal>
-          <TooltipContent
-            className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl space-y-2"
-            style={{ zIndex: 99999 }}
-            side="right"
-            align="start"
-            avoidCollisions={true}
-          >
-            <div>
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</p>
-              <p className="mt-1 text-sm text-popover-foreground whitespace-pre-wrap leading-relaxed">
-                {entry.analysis?.summary ?? '詳細は「詳細を見る」から取得できます。'}
-              </p>
-            </div>
-            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-              <span>Duration: {entry.durationMinutes ? `${entry.durationMinutes} min` : '—'}</span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onOpenDetails(entry.id)
-                }}
-              >
-                詳細を見る
-              </Button>
-            </div>
-          </TooltipContent>
-        </TooltipPrimitive.Portal>
-      </Tooltip>
+      <div className="mt-0.5 flex items-center gap-1.5">
+        <p className="text-sm font-semibold text-foreground">{entry.title}</p>
+        {entry.analysis?.mood && (
+          <span className="text-xs text-muted-foreground whitespace-nowrap">{entry.analysis.mood}</span>
+        )}
+      </div>
     </div>
   )
 })
@@ -494,56 +477,40 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ entry, onOpenDetails }) => {
   }, [entry])
   const analysisSummary = entry.analysis?.summary?.trim()
 
+  // Build logs for tooltip display
+  const segmentLogs = React.useMemo(() => {
+    if (!entry.segments || entry.segments.length === 0) return []
+    return entry.segments
+      .map((segment) => {
+        const text = segment.content?.trim()
+        if (!text) return null
+        return {
+          text,
+          timeLabel: segment.startTime ? toLocaleTime(segment.startTime) : null
+        }
+      })
+      .filter((log): log is { text: string; timeLabel: string | null } => log !== null)
+      .slice(0, 10)
+  }, [entry.segments])
+
   return (
     <div className="relative h-10 px-6">
       {/* Timeline segments */}
       <div className="relative h-full w-full flex items-center">
         {segments.map((segment, idx) => (
-          <Tooltip delayDuration={50} key={segment.id || idx}>
-            <TooltipTrigger asChild>
-              <div
-                className="absolute h-6 rounded-full bg-purple-500 hover:bg-purple-600 pointer-events-auto transition-colors z-0"
-                data-testid="timeline-bar"
-                style={{
-                  left: segment.left,
-                  width: segment.width,
-                  minWidth: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)'
-                }}
-                onClick={() => onOpenDetails(entry.id)}
-              />
-            </TooltipTrigger>
-            <TooltipPrimitive.Portal>
-              <TooltipContent
-                className="max-w-sm max-h-[360px] overflow-y-auto border-2 bg-popover text-left shadow-2xl space-y-2"
-                style={{ zIndex: 99999 }}
-                side="left"
-                align="start"
-                avoidCollisions={false}
-              >
-                {analysisSummary && (
-                  <div>
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</p>
-                    <p className="mt-1 text-sm text-popover-foreground whitespace-pre-wrap leading-relaxed">
-                      {analysisSummary}
-                    </p>
-                  </div>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    onOpenDetails(entry.id)
-                  }}
-                >
-                  詳細を見る
-                </Button>
-              </TooltipContent>
-            </TooltipPrimitive.Portal>
-          </Tooltip>
+          <div
+            key={segment.id || idx}
+            className="absolute h-6 rounded-full bg-purple-500 hover:bg-purple-600 pointer-events-auto transition-colors z-0 cursor-pointer"
+            data-testid="timeline-bar"
+            style={{
+              left: segment.left,
+              width: segment.width,
+              minWidth: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)'
+            }}
+            onMouseEnter={() => onOpenDetails(entry.id)}
+          />
         ))}
       </div>
     </div>
@@ -577,9 +544,8 @@ const EntryDetailsDrawer: React.FC<EntryDetailsDrawerProps> = ({ entryId, onClos
   if (!entryId) return null
 
   return (
-    <div className="fixed inset-0 z-[9999]">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-full max-w-[540px] border-l border-border/60 bg-background shadow-2xl">
+    <div className="fixed right-0 top-0 h-full z-[9999]">
+      <div className="h-full w-full max-w-[540px] border-l border-border/60 bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/70">Entry Details</p>

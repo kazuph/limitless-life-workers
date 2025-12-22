@@ -67,22 +67,65 @@ const extractResponsePayload = (result: unknown): string => {
   return ''
 }
 
+// 3-hour time windows: 0-2, 3-5, 6-8, 9-11, 12-14, 15-17, 18-20, 21-23
+const TIME_WINDOWS = [
+  { start: 0, end: 2, label: '0-2' },
+  { start: 3, end: 5, label: '3-5' },
+  { start: 6, end: 8, label: '6-8' },
+  { start: 9, end: 11, label: '9-11' },
+  { start: 12, end: 14, label: '12-14' },
+  { start: 15, end: 17, label: '15-17' },
+  { start: 18, end: 20, label: '18-20' },
+  { start: 21, end: 23, label: '21-23' }
+] as const
+
+type TimeWindowLabel = (typeof TIME_WINDOWS)[number]['label']
+
+const getTimeWindow = (hour: number): TimeWindowLabel | null => {
+  for (const window of TIME_WINDOWS) {
+    if (hour >= window.start && hour <= window.end) {
+      return window.label
+    }
+  }
+  return null
+}
+
+const getWindowMidpointTime = (windowLabel: TimeWindowLabel): string => {
+  const window = TIME_WINDOWS.find((w) => w.label === windowLabel)
+  if (!window) return '12:00'
+  const midHour = Math.floor((window.start + window.end) / 2)
+  return `${midHour.toString().padStart(2, '0')}:30`
+}
+
 const SUMMARY_JSON_SCHEMA = {
   type: 'object',
   properties: {
     tweets: {
       type: 'array',
-      items: { type: 'string' },
-      maxItems: 3
+      items: {
+        type: 'object',
+        properties: {
+          window: { type: 'string' },
+          text: { type: 'string' }
+        },
+        required: ['window', 'text']
+      },
+      maxItems: 8
     }
   },
   required: ['tweets']
 }
 
-const buildSummaryPrompt = (payload: string) => `あなたは日記編集者です。
-以下は1日のライフログ要約素材です。日本語で「その日を象徴するツイート文」を最大3つ生成してください。
-各ツイートは80〜200文字程度で、箇条書きや箇条書き風の記号は避けます。
-固有名詞は必要最低限にし、自然な文体でまとめてください。
+const buildSummaryPrompt = (payload: string, windows: TimeWindowLabel[]) => `あなたは日記編集者です。
+以下は1日のライフログ要約素材です。各時間帯ごとに「その時間帯を象徴するツイート文」を1つずつ生成してください。
+
+ルール:
+- 各ツイートは80〜200文字程度
+- 箇条書きや箇条書き風の記号は避ける
+- 固有名詞は必要最低限にし、自然な文体でまとめる
+- 各時間帯の内容を反映したツイートを生成する
+- データがある時間帯のみ生成する（以下の時間帯: ${windows.join(', ')}）
+
 出力はJSONのみで、次のスキーマに厳密に従ってください:
 ${JSON.stringify(SUMMARY_JSON_SCHEMA)}
 
@@ -90,24 +133,47 @@ ${JSON.stringify(SUMMARY_JSON_SCHEMA)}
 ${payload}
 `
 
-const tryParseTweets = (raw: string): string[] | null => {
-  try {
-    const parsed = JSON.parse(raw) as { tweets?: unknown }
-    if (!parsed.tweets || !Array.isArray(parsed.tweets)) return null
-    return parsed.tweets.filter((tweet): tweet is string => typeof tweet === 'string').slice(0, 3)
-  } catch {
-    const trimmed = raw.trim()
-    const start = trimmed.indexOf('{')
-    const end = trimmed.lastIndexOf('}')
-    if (start === -1 || end <= start) return null
+type ParsedTweet = { window: string; text: string }
+
+const tryParseTweets = (raw: string): ParsedTweet[] | null => {
+  const parseJson = (json: string): ParsedTweet[] | null => {
     try {
-      const parsed = JSON.parse(trimmed.slice(start, end + 1)) as { tweets?: unknown }
+      const parsed = JSON.parse(json) as { tweets?: unknown }
       if (!parsed.tweets || !Array.isArray(parsed.tweets)) return null
-      return parsed.tweets.filter((tweet): tweet is string => typeof tweet === 'string').slice(0, 3)
+
+      // Handle both new format { window, text } and legacy format (string[])
+      const tweets = parsed.tweets
+        .map((tweet: unknown): ParsedTweet | null => {
+          if (typeof tweet === 'string') {
+            return { window: '12-14', text: tweet } // Legacy: assign to midday
+          }
+          if (tweet && typeof tweet === 'object') {
+            const t = tweet as { window?: string; text?: string }
+            if (typeof t.text === 'string' && typeof t.window === 'string') {
+              return { window: t.window, text: t.text }
+            }
+          }
+          return null
+        })
+        .filter((t): t is ParsedTweet => t !== null)
+        .slice(0, 8)
+
+      return tweets.length ? tweets : null
     } catch {
       return null
     }
   }
+
+  const result = parseJson(raw)
+  if (result) return result
+
+  // Try to extract JSON from response
+  const trimmed = raw.trim()
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start === -1 || end <= start) return null
+
+  return parseJson(trimmed.slice(start, end + 1))
 }
 
 const formatJstTime = (value: Date) =>
@@ -172,14 +238,15 @@ const normalizeStoredTweets = (
 const generateWithGemini = async (
   promptPayload: string,
   env: Bindings,
-  date: string
+  date: string,
+  activeWindows: TimeWindowLabel[] = []
 ): Promise<DaySummary | null> => {
   const apiKey = env.GEMINI_API_KEY
   if (!apiKey) {
     return null
   }
 
-  const prompt = buildSummaryPrompt(promptPayload)
+  const prompt = buildSummaryPrompt(promptPayload, activeWindows)
 
   try {
     const response = await fetch(
@@ -198,7 +265,7 @@ const generateWithGemini = async (
           generationConfig: {
             responseMimeType: 'application/json',
             temperature: 0.4,
-            maxOutputTokens: 1024
+            maxOutputTokens: 2048
           }
         })
       }
@@ -230,12 +297,11 @@ const generateWithGemini = async (
     if (!tweets.length) return null
 
     const now = new Date().toISOString()
-    const times = buildFallbackTimes(date, tweets.length, now)
     return {
       date,
-      tweets: tweets.map((tweet, index) => ({
-        text: tweet,
-        time: times[index] ?? times[times.length - 1]
+      tweets: tweets.map((tweet) => ({
+        text: tweet.text,
+        time: getWindowMidpointTime(tweet.window as TimeWindowLabel)
       })),
       generatedAt: now,
       source: 'generated',
@@ -305,6 +371,39 @@ const summarizeFromEntries = async (
     }
   }
 
+  // Group entries by 3-hour time windows
+  const windowedItems = new Map<TimeWindowLabel, typeof entries>()
+  for (const entry of entries) {
+    if (!entry.startTime) continue
+    const entryDate = new Date(entry.startTime)
+    // Convert to JST hour
+    const jstHour = (entryDate.getUTCHours() + 9) % 24
+    const windowLabel = getTimeWindow(jstHour)
+    if (!windowLabel) continue
+
+    if (!windowedItems.has(windowLabel)) {
+      windowedItems.set(windowLabel, [])
+    }
+    windowedItems.get(windowLabel)!.push(entry)
+  }
+
+  // Get windows that have data
+  const activeWindows = Array.from(windowedItems.keys()).sort((a, b) => {
+    const windowA = TIME_WINDOWS.find((w) => w.label === a)
+    const windowB = TIME_WINDOWS.find((w) => w.label === b)
+    return (windowA?.start ?? 0) - (windowB?.start ?? 0)
+  })
+
+  if (!activeWindows.length) {
+    return {
+      date,
+      tweets: [],
+      generatedAt: now,
+      source: 'unavailable'
+    }
+  }
+
+  // Build items with window information
   const items = entries.map((entry) => {
     const markdownSnippet = entry.markdown?.slice(0, 240)
     let analysisSummary = ''
@@ -316,21 +415,29 @@ const summarizeFromEntries = async (
         analysisSummary = ''
       }
     }
+    // Determine window for this entry
+    let window: TimeWindowLabel | null = null
+    if (entry.startTime) {
+      const entryDate = new Date(entry.startTime)
+      const jstHour = (entryDate.getUTCHours() + 9) % 24
+      window = getTimeWindow(jstHour)
+    }
     return {
       title: entry.title,
       startTime: entry.startTime,
       endTime: entry.endTime,
       analysisSummary,
-      markdownSnippet
+      markdownSnippet,
+      window
     }
   })
 
-  const promptPayload = JSON.stringify({ date, items })
+  const promptPayload = JSON.stringify({ date, items, activeWindows })
   const preferredModel = opts.preferredModel ?? 'openai'
   const allowGeminiFallback = preferredModel !== 'gemini'
 
   if (preferredModel === 'gemini') {
-    const gemini = await generateWithGemini(promptPayload, env, date)
+    const gemini = await generateWithGemini(promptPayload, env, date, activeWindows)
     if (gemini) {
       return gemini
     }
@@ -338,14 +445,13 @@ const summarizeFromEntries = async (
 
   try {
     const response = await env.AI.run(MODEL, {
-      input: buildSummaryPrompt(promptPayload)
+      input: buildSummaryPrompt(promptPayload, activeWindows)
     })
     const summaryText = extractResponsePayload(response).trim()
     const tweets = tryParseTweets(summaryText) ?? []
-    const times = tweets.length ? buildTweetTimes(items, tweets.length, date) : []
 
     if (!tweets.length && allowGeminiFallback) {
-      const gemini = await generateWithGemini(promptPayload, env, date)
+      const gemini = await generateWithGemini(promptPayload, env, date, activeWindows)
       if (gemini) {
         return gemini
       }
@@ -353,9 +459,9 @@ const summarizeFromEntries = async (
 
     return {
       date,
-      tweets: tweets.map((tweet, index) => ({
-        text: tweet,
-        time: times[index] ?? times[times.length - 1]
+      tweets: tweets.map((tweet) => ({
+        text: tweet.text,
+        time: getWindowMidpointTime(tweet.window as TimeWindowLabel)
       })),
       generatedAt: now,
       source: tweets.length ? 'generated' : 'unavailable',
@@ -364,7 +470,7 @@ const summarizeFromEntries = async (
   } catch (error) {
     console.error('day summary generation failed', { date, error })
     if (allowGeminiFallback) {
-      const gemini = await generateWithGemini(promptPayload, env, date)
+      const gemini = await generateWithGemini(promptPayload, env, date, activeWindows)
       if (gemini) {
         return gemini
       }

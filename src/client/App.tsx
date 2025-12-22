@@ -22,7 +22,7 @@ export const App: React.FC = () => {
 
   const { data, error, isLoading, refetch } = useQuery<TimelineResponse>({
     queryKey: ['timeline', offset],
-    queryFn: () => fetchTimeline({ days: 7, offset }),
+    queryFn: () => fetchTimeline({ days: 7, offset, detail: true }),
     refetchInterval: offset === 0 ? 60_000 : false
   })
 
