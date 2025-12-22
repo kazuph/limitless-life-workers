@@ -69,6 +69,9 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
   const queryClient = useQueryClient()
   const [isSyncing, setIsSyncing] = React.useState(false)
   const [isAutoScrolling, setIsAutoScrolling] = React.useState(false)
+  // Flag to prevent scroll sync during hover interactions
+  const isHoveringRef = React.useRef(false)
+  const hoverTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const observerOptions = React.useMemo(() => ({ rootMargin: '200px' }), [])
   const isHeaderVisible = useInView(headerRef, observerOptions)
 
@@ -89,6 +92,8 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
 
   const syncScroll = (source: 'left' | 'right') => {
     if (isSyncing) return
+    // Skip scroll sync during hover to prevent position reset
+    if (isHoveringRef.current) return
     setIsSyncing(true)
 
     const leftViewport = leftScrollRef.current
@@ -167,6 +172,34 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
     rightScrollRef.current.scrollLeft = initialScroll
   }, [items, calculateHorizontalScroll])
 
+  // Handler to manage hover state and prevent scroll jumping
+  const handleEntryHover = React.useCallback((entryId: string) => {
+    // Set hover flag to prevent scroll sync
+    isHoveringRef.current = true
+
+    // Clear any existing timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+    }
+
+    // Open details immediately
+    onOpenDetails(entryId)
+
+    // Reset hover flag after a short delay to allow scroll sync again
+    hoverTimeoutRef.current = setTimeout(() => {
+      isHoveringRef.current = false
+    }, 300)
+  }, [onOpenDetails])
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Set up vertical scroll listener with smooth real-time horizontal scroll
   React.useEffect(() => {
     const leftContainer = leftScrollRef.current
@@ -178,8 +211,15 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
     const syncHorizontalScroll = () => {
       if (rafId !== null) return
       if (isAutoScrolling) return
+      // Skip sync during hover to prevent scroll jumping
+      if (isHoveringRef.current) return
 
       rafId = requestAnimationFrame(() => {
+        // Double-check hover state inside RAF
+        if (isHoveringRef.current) {
+          rafId = null
+          return
+        }
         const visibleEntry = findVisibleEntry()
         if (visibleEntry && rightScrollRef.current) {
           const targetScrollLeft = calculateHorizontalScroll(visibleEntry)
@@ -306,7 +346,7 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
                 <TimelineEntryInfo
                   key={entry.id}
                   entry={entry}
-                  onOpenDetails={onOpenDetails}
+                  onOpenDetails={handleEntryHover}
                   ref={(el) => {
                     if (el) {
                       entryRefs.current.set(entry.id, el)
@@ -355,7 +395,7 @@ const TimelineGroup: React.FC<TimelineGroupProps> = ({ date, items, onOpenDetail
 
                 <div className="relative py-1 z-10">
                   {items.map((entry) => (
-                    <TimelineBar key={entry.id} entry={entry} onOpenDetails={onOpenDetails} />
+                    <TimelineBar key={entry.id} entry={entry} onOpenDetails={handleEntryHover} />
                   ))}
                 </div>
               </div>
