@@ -60,8 +60,12 @@ pub fn routes() -> Array[@router.SolRoutes] {
 }
 
 ///|
-/// Configure Hono app with Sol routes
+/// Configure Hono app with Sol routes and API routes
 pub fn configure_app(app : @router.App) -> @router.App {
+  // Register API routes first
+  register_api_routes(app)
+
+  // Register Sol SSR routes
   let config = @router.RouterConfig::default()
     .with_default_head(DEFAULT_HEAD)
     .with_root_template(ROOT_TEMPLATE)

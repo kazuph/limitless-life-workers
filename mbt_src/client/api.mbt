@@ -89,10 +89,10 @@ fn parse_timeline_entries(json : @core.Any) -> Array[TimelineEntry] {
 fn parse_timeline_entry(json : @core.Any) -> TimelineEntry {
   let id : String = json["id"].cast()
   let title : String = json["title"].cast()
-  let start_time : String = json["startTime"].cast()
-  let end_time : String = json["endTime"].cast()
-  let date_label : String? = @core.identity_option(json["dateLabel"])
-  let duration_minutes : Int? = @core.identity_option(json["durationMinutes"])
+  let start_time : String = json["start_time"].cast()
+  let end_time : String = json["end_time"].cast()
+  let date_label : String? = @core.identity_option(json["date_label"])
+  let duration_minutes : Int? = @core.identity_option(json["duration_minutes"])
 
   // Parse segments
   let segments : Array[TimelineSegment] = []
@@ -119,10 +119,10 @@ fn parse_timeline_entry(json : @core.Any) -> TimelineEntry {
 fn parse_segment(json : @core.Any) -> TimelineSegment {
   let id : String = json["id"].cast()
   let content : String? = @core.identity_option(json["content"])
-  let start_time : String? = @core.identity_option(json["startTime"])
-  let end_time : String? = @core.identity_option(json["endTime"])
-  let node_type : String? = @core.identity_option(json["nodeType"])
-  let speaker_name : String? = @core.identity_option(json["speakerName"])
+  let start_time : String? = @core.identity_option(json["start_time"])
+  let end_time : String? = @core.identity_option(json["end_time"])
+  let node_type : String? = @core.identity_option(json["node_type"])
+  let speaker_name : String? = @core.identity_option(json["speaker_name"])
   { id, content, start_time, end_time, node_type, speaker_name }
 }
 

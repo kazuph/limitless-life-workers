@@ -1,13 +1,9 @@
-import type { Next } from 'hono'
-import type { Context } from 'hono'
-import { getDb } from '../db/client'
-import { ensureSchema } from '../db/schema-init'
+import type { Next, Context } from 'hono'
 import type { Env } from '../env'
+// @ts-ignore - MoonBit generated module
+import { ensure_schema } from '../../target/js/release/build/server/server.js'
 
 export const withDb = () => async (c: Context<Env>, next: Next) => {
-  await ensureSchema(c.env.LIFELOG_DB)
-  if (!c.get('db')) {
-    c.set('db', getDb(c.env.LIFELOG_DB))
-  }
+  await ensure_schema(c.env.LIFELOG_DB)
   await next()
 }

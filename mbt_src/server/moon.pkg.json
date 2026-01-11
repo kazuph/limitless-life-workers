@@ -4,12 +4,21 @@
   "import": [
     { "path": "mizchi/luna/luna", "alias": "luna" },
     { "path": "mizchi/luna/luna/static_dom", "alias": "server_dom" },
-    { "path": "mizchi/luna/sol/router", "alias": "router" }
+    { "path": "mizchi/luna/sol/router", "alias": "router" },
+    "mizchi/js",
+    "mizchi/js/core"
   ],
   "link": {
     "js": {
       "format": "esm",
-      "exports": ["routes", "configure_app"]
+      "exports": [
+        "routes",
+        "configure_app",
+        "register_api_routes",
+        "handle_scheduled",
+        "get_scheduled_handler",
+        "ensure_schema"
+      ]
     }
   }
 }
