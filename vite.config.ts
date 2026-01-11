@@ -1,12 +1,19 @@
 import { cloudflare } from '@cloudflare/vite-plugin'
-import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import ssrPlugin from 'vite-ssr-components/plugin'
+import { moonbit } from 'vite-plugin-moonbit'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig(({ mode, isSsrBuild }) => ({
   appType: 'custom',
-  plugins: [cloudflare(), ssrPlugin(), react()],
+  plugins: [
+    cloudflare(),
+    ssrPlugin(),
+    moonbit({
+      target: 'js',
+      watch: mode === 'development',
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -19,7 +26,7 @@ export default defineConfig(({ mode, isSsrBuild }) => ({
   build: {
     manifest: true,
     rollupOptions: {
-      input: isSsrBuild ? './src/index.tsx' : './src/client/main.tsx',
+      input: isSsrBuild ? './src/index.tsx' : './src/client/main.ts',
       output: !isSsrBuild ? {
         entryFileNames: 'assets/main.js',
         chunkFileNames: 'assets/[name]-[hash].js',

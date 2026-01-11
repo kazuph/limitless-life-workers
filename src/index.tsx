@@ -30,6 +30,8 @@ import { lifelogEntries, lifelogSegments } from './db/schema'
 import { sql } from 'drizzle-orm'
 import { cloudflareRateLimiter } from '@hono-rate-limiter/cloudflare'
 import { getSyncStateValue, upsertSyncState } from './services/state'
+// @ts-ignore - MoonBit generated module
+import { configure_app } from '../target/js/release/build/server/server.js'
 
 const app = new Hono<Env>()
 const LAST_GEMINI_POSTED_KEY = 'gemini:lastPostedAt'
@@ -270,13 +272,14 @@ app.post('/api/slack-insights', async (c) => {
   }
 })
 
-app.get('/', renderer, async (c) => {
+// Main page route is now handled by MoonBit Sol SSR
+// Configure MoonBit routes AFTER all middleware
+configure_app(app)
+
+// Legacy: Queue fresh data on main page access (triggered via middleware)
+app.use('/', async (c, next) => {
   queueFreshData(c)
-  return c.render(
-    <div id="root" class="min-h-screen">
-      <noscript>Enable JavaScript to view the dashboard.</noscript>
-    </div>
-  )
+  await next()
 })
 
 const queueFreshData = (c: Context<Env>) => {

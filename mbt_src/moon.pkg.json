@@ -1,0 +1,77 @@
+{
+  "is-main": true,
+  "supported-targets": ["js"],
+  "import": [
+    {
+      "path": "lifelog/app/timeline",
+      "alias": "timeline"
+    },
+    {
+      "path": "lifelog/app/date",
+      "alias": "date"
+    },
+    {
+      "path": "lifelog/app/entry",
+      "alias": "entry"
+    },
+    {
+      "path": "lifelog/app/utils",
+      "alias": "utils"
+    }
+  ],
+  "link": {
+    "js": {
+      "exports": [
+        "clamp",
+        "clamp_int",
+        "compute_band_position",
+        "calculate_horizontal_scroll",
+        "format_time",
+        "format_date_label",
+        "to_locale_time",
+        "is_valid_date",
+        "get_date_key",
+        "get_time_components",
+        "get_date_components",
+        "compare_dates",
+        "get_day_percentage",
+        "get_minutes_diff",
+        "select_date",
+        "percentage_from_midnight",
+        "count_chars",
+        "trim_string",
+        "generate_metric_label",
+        "format_number_with_comma",
+        "count_total_chars",
+        "calculate_segment_band",
+        "has_valid_content",
+        "is_valid_band",
+        "format_log_time_label",
+        "get_group_date_key",
+        "get_group_date_label",
+        "pad_left",
+        "pad_right",
+        "is_blank",
+        "is_not_blank",
+        "truncate",
+        "lerp",
+        "percentage_in_range",
+        "round_to",
+        "in_range",
+        "min_double",
+        "max_double",
+        "min_int",
+        "max_int",
+        "abs_double",
+        "abs_int",
+        "starts_with",
+        "ends_with",
+        "to_upper",
+        "to_lower",
+        "capitalize",
+        "hash_string"
+      ],
+      "format": "esm"
+    }
+  }
+}

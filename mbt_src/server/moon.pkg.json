@@ -1,0 +1,15 @@
+{
+  "is-main": true,
+  "supported-targets": ["js"],
+  "import": [
+    { "path": "mizchi/luna/luna", "alias": "luna" },
+    { "path": "mizchi/luna/luna/static_dom", "alias": "server_dom" },
+    { "path": "mizchi/luna/sol/router", "alias": "router" }
+  ],
+  "link": {
+    "js": {
+      "format": "esm",
+      "exports": ["routes", "configure_app"]
+    }
+  }
+}

@@ -3,7 +3,10 @@ import animatePlugin from 'tailwindcss-animate'
 
 const config: Config = {
   darkMode: ['class'],
-  content: ['./src/**/*.{ts,tsx}'],
+  content: [
+    './src/**/*.{ts,tsx}',
+    './mbt_src/**/*.mbt',  // Scan MoonBit files for Tailwind classes
+  ],
   theme: {
     extend: {
       colors: {
