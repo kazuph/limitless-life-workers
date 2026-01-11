@@ -1,5 +1,4 @@
 import type { Ai, RateLimit } from '@cloudflare/workers-types/experimental'
-import type { Database } from './db/client'
 
 export type Bindings = {
   LIFELOG_DB: D1Database
@@ -15,11 +14,6 @@ export type Bindings = {
   SLACK_CHANNEL?: string
 }
 
-export type Variables = {
-  db: Database
-}
-
 export type Env = {
   Bindings: Bindings
-  Variables: Variables
 }

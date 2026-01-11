@@ -34,6 +34,11 @@ lerna-debug.log*
 # misc
 .DS_Store
 
+# MoonBit build artifacts
+target/
+.mooncakes/
+mbt/
+
 # cache
 .npm-cache/
 

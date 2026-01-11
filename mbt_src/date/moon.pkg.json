@@ -1,0 +1,8 @@
+{
+  "import": [
+    {
+      "path": "mizchi/js/builtins/date",
+      "alias": "jsdate"
+    }
+  ]
+}

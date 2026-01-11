@@ -1,0 +1,8 @@
+{
+  "supported-targets": ["js"],
+  "import": [
+    "mizchi/js/core",
+    { "path": "mizchi/cloudflare", "alias": "cloudflare" },
+    { "path": "lifelog/app/types", "alias": "types" }
+  ]
+}

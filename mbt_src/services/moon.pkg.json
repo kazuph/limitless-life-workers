@@ -1,0 +1,37 @@
+{
+  "is-main": false,
+  "supported-targets": ["js"],
+  "import": [
+    "mizchi/js",
+    "mizchi/js/core",
+    "mizchi/js/web/http",
+    "mizchi/js/web/console",
+    "mizchi/js/web/url"
+  ],
+  "link": {
+    "js": {
+      "exports": [
+        "sync_lifelogs",
+        "get_last_synced_at",
+        "analyze_fresh_entries",
+        "get_last_analyzed_at",
+        "get_day_summary",
+        "regenerate_day_summary",
+        "analyze_insights_with_gemini",
+        "post_to_slack",
+        "post_insights_to_slack",
+        "post_error_to_slack",
+        "post_warning_to_slack",
+        "format_insights_for_slack",
+        "get_timeline_snapshot",
+        "get_timeline_entry_detail",
+        "get_integration_suggestions",
+        "get_sync_state_value",
+        "upsert_sync_state",
+        "delete_sync_state",
+        "get_all_sync_states"
+      ],
+      "format": "esm"
+    }
+  }
+}

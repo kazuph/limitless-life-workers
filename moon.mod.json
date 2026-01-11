@@ -1,0 +1,11 @@
+{
+  "name": "lifelog/app",
+  "version": "0.1.0",
+  "deps": {
+    "mizchi/js": "0.10.0",
+    "mizchi/cloudflare": "0.1.1",
+    "mizchi/luna": "0.4.1"
+  },
+  "source": "mbt_src",
+  "preferred-target": "js"
+}
