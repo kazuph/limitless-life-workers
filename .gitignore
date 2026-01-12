@@ -39,6 +39,9 @@ target/
 .mooncakes/
 mbt/
 
+# Sol/Luna generated files
+app/__gen__/
+
 # cache
 .npm-cache/
 
