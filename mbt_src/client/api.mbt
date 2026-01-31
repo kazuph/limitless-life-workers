@@ -76,6 +76,10 @@ pub struct TimelineResponse {
 /// Parse JSON to TimelineEntry array
 fn parse_timeline_entries(json : @core.Any) -> Array[TimelineEntry] {
   let entries : Array[TimelineEntry] = []
+  // Guard against null/undefined to prevent "Cannot read properties of undefined (reading 'length')"
+  if @core.is_nullish(json) {
+    return entries
+  }
   let arr = @core.array_from(json)
   for item in arr {
     let entry = parse_timeline_entry(item)

@@ -11,6 +11,10 @@
 let last_updated_key : String = "lifelog:lastUpdatedAt"
 
 ///|
+/// State key for last start time (used for API start parameter)
+let last_start_time_key : String = "lifelog:lastStartTime"
+
+///|
 /// State key for last sync timestamp
 let last_sync_key : String = "lifelog:lastSyncedAt"
 
@@ -115,15 +119,16 @@ pub struct LimitlessResponse {
 
 ///|
 /// Get sync state value from database (direct D1 call)
+/// Returns empty string if value is null/undefined (to avoid MoonBit FFI issues)
 extern "js" fn ffi_get_sync_state_value(
   db : @core.Any,
   key : String
-) -> @js.Promise[String?] =
+) -> @js.Promise[String] =
   #| async (db, key) => {
   #|   const result = await db.prepare(
   #|     'SELECT value FROM sync_state WHERE key = ?'
   #|   ).bind(key).first()
-  #|   return result?.value ?? null
+  #|   return result?.value || ''
   #| }
 
 ///|
@@ -180,11 +185,13 @@ extern "js" fn ffi_fetch_lifelogs(
 
 ///|
 /// Insert or update lifelog entry (raw SQL)
+/// Note: D1 doesn't support undefined, so we convert to null
 extern "js" fn ffi_upsert_entry(
   db : @core.Any,
   entry : @core.Any
 ) -> @js.Promise[Unit] =
   #| async (db, entry) => {
+  #|   const n = (v) => v === undefined ? null : v;
   #|   await db.prepare(`
   #|     INSERT INTO lifelog_entries (
   #|       id, title, markdown, start_time, end_time,
@@ -203,10 +210,10 @@ extern "js" fn ffi_upsert_entry(
   #|       timezone = excluded.timezone,
   #|       summary_hash = excluded.summary_hash
   #|   `).bind(
-  #|     entry.id, entry.title, entry.markdown,
-  #|     entry.startTime, entry.endTime,
-  #|     entry.startEpochMs, entry.endEpochMs, entry.isStarred ? 1 : 0,
-  #|     entry.updatedAt, entry.timezone, entry.summaryHash
+  #|     n(entry.id), n(entry.title), n(entry.markdown),
+  #|     n(entry.startTime), n(entry.endTime),
+  #|     n(entry.startEpochMs), n(entry.endEpochMs), entry.isStarred ? 1 : 0,
+  #|     n(entry.updatedAt), n(entry.timezone), n(entry.summaryHash)
   #|   ).run()
   #| }
 
@@ -224,11 +231,13 @@ extern "js" fn ffi_delete_segments(
 
 ///|
 /// Insert segments in batch (raw SQL)
+/// Note: D1 doesn't support undefined, so we convert to null
 extern "js" fn ffi_insert_segments(
   db : @core.Any,
   segments : @core.Any
 ) -> @js.Promise[Unit] =
   #| async (db, segments) => {
+  #|   const n = (v) => v === undefined ? null : v;
   #|   for (const seg of segments) {
   #|     await db.prepare(`
   #|       INSERT INTO lifelog_segments (
@@ -237,9 +246,9 @@ extern "js" fn ffi_insert_segments(
   #|         speaker_name, speaker_identifier
   #|       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   #|     `).bind(
-  #|       seg.entryId, seg.nodeId, seg.path, seg.nodeType, seg.content,
-  #|       seg.startTime, seg.endTime, seg.startOffsetMs, seg.endOffsetMs,
-  #|       seg.speakerName, seg.speakerIdentifier
+  #|       n(seg.entryId), n(seg.nodeId), n(seg.path), n(seg.nodeType), n(seg.content),
+  #|       n(seg.startTime), n(seg.endTime), n(seg.startOffsetMs), n(seg.endOffsetMs),
+  #|       n(seg.speakerName), n(seg.speakerIdentifier)
   #|     ).run()
   #|   }
   #| }
@@ -259,6 +268,24 @@ extern "js" fn ffi_to_sha1(content : String) -> @js.Promise[String] =
 /// Get current ISO timestamp
 extern "js" fn ffi_now_iso() -> String =
   #| () => new Date().toISOString()
+
+///|
+/// Subtract hours from ISO timestamp and return new ISO string
+extern "js" fn ffi_subtract_hours(iso : String, hours : Int) -> String =
+  #| (iso, hours) => {
+  #|   const date = new Date(iso)
+  #|   date.setTime(date.getTime() - hours * 60 * 60 * 1000)
+  #|   return date.toISOString()
+  #| }
+
+///|
+/// Get ISO timestamp for N days ago
+extern "js" fn ffi_days_ago(days : Int) -> String =
+  #| (days) => {
+  #|   const date = new Date()
+  #|   date.setTime(date.getTime() - days * 24 * 60 * 60 * 1000)
+  #|   return date.toISOString()
+  #| }
 
 ///|
 /// Get environment variable
@@ -301,19 +328,15 @@ fn chunk_array[T](values : Array[T], chunk_size : Int) -> Array[Array[T]] {
 }
 
 ///|
-/// Apply backfill window (6 hours before)
+/// Apply backfill window (6 hours before to catch any missed data)
 fn backfill_window(since : String) -> String? {
-  // This is a simplified version - in production, we'd parse and manipulate the date
-  // For now, we'll rely on the JS implementation
-  Some(since)
+  Some(ffi_subtract_hours(since, 6))
 }
 
 ///|
 /// Get default start date (7 days ago)
 fn get_default_start_date() -> String {
-  // This is a simplified version - actual implementation would compute 7 days ago
-  // For now, we'll return empty and let JS handle it
-  ""
+  ffi_days_ago(7)
 }
 
 ///|
@@ -473,16 +496,26 @@ fn lifelog_to_segments(
 
   fn process_contents(
     contents : Array[LifelogContent],
-    parent : String?
+    parent : String?,
+    parent_path : String
   ) -> Unit {
+    let mut child_idx = 0
     for content in contents {
       let segment_id = lifelog.id + "-" + idx.to_string()
+      let current_path = if parent_path == "" {
+        child_idx.to_string()
+      } else {
+        parent_path + "/" + child_idx.to_string()
+      }
       idx = idx + 1
+      child_idx = child_idx + 1
 
       let segment = @core.from_entries(
         [
           ("id", @core.any(segment_id)),
           ("entryId", @core.any(lifelog.id)),
+          ("nodeId", @core.any(segment_id)),
+          ("path", @core.any(current_path)),
           ("content", @core.nullable(content.content)),
           ("startTime", @core.nullable(content.start_time)),
           ("endTime", @core.nullable(content.end_time)),
@@ -497,12 +530,12 @@ fn lifelog_to_segments(
       segments.push(segment)
 
       if content.children.length() > 0 {
-        process_contents(content.children, Some(segment_id))
+        process_contents(content.children, Some(segment_id), current_path)
       }
     }
   }
 
-  process_contents(lifelog.contents, parent_id)
+  process_contents(lifelog.contents, parent_id, "")
   segments
 }
 
@@ -558,10 +591,28 @@ pub async fn sync_lifelogs(
   let mut cursor : String? = None
   let mut processed = 0
   let mut last_updated_at : String? = None
+  let mut last_start_time : String? = None
   let mut attempted = false
 
-  // Get stored since value
-  let stored_since = ffi_get_sync_state_value(db, last_updated_key).wait()
+  // Get stored since value based on start_time (not updated_at)
+  // This is the correct approach as Limitless API's start parameter filters by start_time
+  // FFI returns empty string instead of null to avoid MoonBit FFI issues
+  let stored_since_raw = ffi_get_sync_state_value(db, last_start_time_key).wait()
+
+  // Normalize stored_since: treat empty strings and null-like values as None
+  let stored_since : String? = if stored_since_raw.length() > 0 &&
+    stored_since_raw != "null" &&
+    stored_since_raw != "undefined" {
+    Some(stored_since_raw)
+  } else {
+    None
+  }
+
+  // Debug log
+  match stored_since {
+    Some(s) => ffi_log("[Sync] stored_since = " + s)
+    None => ffi_log("[Sync] stored_since = None, using default (7 days ago)")
+  }
 
   // Determine starting point for sync
   let since : String? = if opts.full_refresh {
@@ -571,6 +622,12 @@ pub async fn sync_lifelogs(
       Some(s) => backfill_window(s)
       None => Some(get_default_start_date())
     }
+  }
+
+  // Log the sync range for debugging
+  match since {
+    Some(s) => ffi_log("[Sync] Fetching lifelogs with start >= " + s)
+    None => ffi_log("[Sync] Fetching all lifelogs (no start filter)")
   }
 
   // Pagination loop
@@ -640,6 +697,15 @@ pub async fn sync_lifelogs(
           }
         None => ()
       }
+
+      // Track latest start_time (this is what Limitless API filters by)
+      match last_start_time {
+        None => last_start_time = Some(lifelog.start_time)
+        Some(current) =>
+          if lifelog.start_time > current {
+            last_start_time = Some(lifelog.start_time)
+          }
+      }
     }
 
     cursor = get_next_cursor(response)
@@ -655,6 +721,15 @@ pub async fn sync_lifelogs(
     None => ()
   }
 
+  // Update last_start_time (this is the key fix - use start_time for API filtering)
+  match last_start_time {
+    Some(start) => {
+      ffi_sync_upsert_state(db, last_start_time_key, start).wait()
+      ffi_log("[Sync] Updated lastStartTime to " + start)
+    }
+    None => ()
+  }
+
   if attempted {
     let now = ffi_now_iso()
     ffi_sync_upsert_state(db, last_sync_key, now).wait()
@@ -666,5 +741,10 @@ pub async fn sync_lifelogs(
 ///|
 /// Get last synced timestamp
 pub async fn get_last_synced_at(db : @core.Any) -> String? {
-  ffi_get_sync_state_value(db, last_sync_key).wait()
+  let result = ffi_get_sync_state_value(db, last_sync_key).wait()
+  if result.length() > 0 {
+    Some(result)
+  } else {
+    None
+  }
 }

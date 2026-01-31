@@ -20,10 +20,10 @@ const ROOT_TEMPLATE : String =
 
 ///|
 /// Default head content (CSS, scripts)
-/// Note: In development, Vite serves from /src/; in production from /static/
+/// Uses production paths (/assets/) - Vite dev server proxies these correctly
 const DEFAULT_HEAD : String =
-  #|<link rel="stylesheet" href="/src/client/globals.css">
-  #|<script type="module" src="/src/client/main.ts"></script>
+  #|<link rel="stylesheet" href="/assets/main.css">
+  #|<script type="module" src="/assets/main.js"></script>
 
 ///|
 /// Home page handler - renders the main timeline view
