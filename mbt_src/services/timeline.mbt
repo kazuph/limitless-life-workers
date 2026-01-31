@@ -36,55 +36,59 @@ extern "js" fn ffi_get_timeline_snapshot(
   #|
   #|   const entries = entriesResult.results || []
   #|   const timeline = []
+  #|   const entryIds = entries.map(e => e.id)
   #|
-  #|   // Get analyses for entries (limited)
+  #|   // Get analyses for entries (limited) - batch query
   #|   const analysisMap = new Map()
-  #|   if (analysisLimit > 0) {
-  #|     const entryIds = entries.slice(0, analysisLimit).map(e => e.id)
-  #|     if (entryIds.length > 0) {
-  #|       const placeholders = entryIds.map(() => '?').join(',')
-  #|       const analysesResult = await db.prepare(`
-  #|         SELECT entry_id, insights_json
-  #|         FROM lifelog_analyses
-  #|         WHERE entry_id IN (${placeholders})
-  #|       `).bind(...entryIds).all()
+  #|   if (analysisLimit > 0 && entryIds.length > 0) {
+  #|     const analysisIds = entryIds.slice(0, analysisLimit)
+  #|     const placeholders = analysisIds.map(() => '?').join(',')
+  #|     const analysesResult = await db.prepare(`
+  #|       SELECT entry_id, insights_json
+  #|       FROM lifelog_analyses
+  #|       WHERE entry_id IN (${placeholders})
+  #|     `).bind(...analysisIds).all()
   #|
-  #|       for (const row of (analysesResult.results || [])) {
-  #|         try {
-  #|           analysisMap.set(row.entry_id, JSON.parse(row.insights_json))
-  #|         } catch (e) {
-  #|           console.warn('Failed to parse analysis JSON:', e)
-  #|         }
+  #|     for (const row of (analysesResult.results || [])) {
+  #|       try {
+  #|         analysisMap.set(row.entry_id, JSON.parse(row.insights_json))
+  #|       } catch (e) {
+  #|         console.warn('Failed to parse analysis JSON:', e)
   #|       }
   #|     }
   #|   }
   #|
-  #|   // Build timeline entries
-  #|   for (const entry of entries) {
-  #|     const segments = []
+  #|   // Get segments for all entries using JOIN (fix N+1 problem without IN clause limit)
+  #|   const segmentsMap = new Map()
+  #|   if (detail && entries.length > 0) {
+  #|     const segmentsResult = await db.prepare(`
+  #|       SELECT
+  #|         s.entry_id, s.node_id, s.content, s.start_time, s.end_time,
+  #|         s.node_type, s.speaker_name
+  #|       FROM lifelog_segments s
+  #|       INNER JOIN lifelog_entries e ON s.entry_id = e.id
+  #|       WHERE e.start_time >= ? AND e.start_time <= ?
+  #|       ORDER BY s.entry_id, s.start_time ASC
+  #|     `).bind(startStr, endStr).all()
   #|
-  #|     if (detail) {
-  #|       // Get segments for this entry
-  #|       const segmentsResult = await db.prepare(`
-  #|         SELECT
-  #|           node_id, content, start_time, end_time,
-  #|           node_type, speaker_name
-  #|         FROM lifelog_segments
-  #|         WHERE entry_id = ?
-  #|         ORDER BY start_time ASC
-  #|       `).bind(entry.id).all()
-  #|
-  #|       for (const seg of (segmentsResult.results || [])) {
-  #|         segments.push({
-  #|           id: seg.node_id,
-  #|           content: seg.content,
-  #|           start_time: seg.start_time,
-  #|           end_time: seg.end_time,
-  #|           node_type: seg.node_type,
-  #|           speaker_name: seg.speaker_name
-  #|         })
+  #|     for (const seg of (segmentsResult.results || [])) {
+  #|       if (!segmentsMap.has(seg.entry_id)) {
+  #|         segmentsMap.set(seg.entry_id, [])
   #|       }
+  #|       segmentsMap.get(seg.entry_id).push({
+  #|         id: seg.node_id,
+  #|         content: seg.content,
+  #|         start_time: seg.start_time,
+  #|         end_time: seg.end_time,
+  #|         node_type: seg.node_type,
+  #|         speaker_name: seg.speaker_name
+  #|       })
   #|     }
+  #|   }
+  #|
+  #|   // Build timeline entries (no more N+1 queries!)
+  #|   for (const entry of entries) {
+  #|     const segments = segmentsMap.get(entry.id) || []
   #|
   #|     // Calculate duration
   #|     let durationMinutes = null
