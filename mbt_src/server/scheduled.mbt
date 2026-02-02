@@ -190,11 +190,14 @@ extern "js" fn ffi_sched_gemini_insights(
   #|       return null
   #|     }
   #|
-  #|     const textContent = candidates[0]?.content?.parts?.[0]?.text
+  #|     let textContent = candidates[0]?.content?.parts?.[0]?.text
   #|     if (!textContent) {
   #|       console.error('[Scheduled] No text in Gemini response')
   #|       return null
   #|     }
+  #|
+  #|     // Sanitize JSON by removing control characters except allowed ones
+  #|     textContent = textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   #|
   #|     return JSON.parse(textContent)
   #|   } catch (error) {
@@ -422,11 +425,14 @@ extern "js" fn ffi_sched_gemini_daily(
   #|       return null
   #|     }
   #|
-  #|     const textContent = candidates[0]?.content?.parts?.[0]?.text
+  #|     let textContent = candidates[0]?.content?.parts?.[0]?.text
   #|     if (!textContent) {
   #|       console.error('[Scheduled] No text in Gemini response for daily')
   #|       return null
   #|     }
+  #|
+  #|     // Sanitize JSON by removing control characters except allowed ones
+  #|     textContent = textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   #|
   #|     return JSON.parse(textContent)
   #|   } catch (error) {

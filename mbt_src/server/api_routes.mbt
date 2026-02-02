@@ -303,10 +303,13 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|         return c.json({ ok: false, error: 'No candidates in Gemini response' }, 500)
   #|       }
   #|
-  #|       const textContent = candidates[0]?.content?.parts?.[0]?.text
+  #|       let textContent = candidates[0]?.content?.parts?.[0]?.text
   #|       if (!textContent) {
   #|         return c.json({ ok: false, error: 'No text in Gemini response' }, 500)
   #|       }
+  #|
+  #|       // Sanitize JSON by removing control characters except allowed ones
+  #|       textContent = textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   #|
   #|       const insights = JSON.parse(textContent)
   #|
