@@ -316,18 +316,18 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|
   #|       const insights = JSON.parse(textContent)
   #|
+  #|       // Support dry-run mode for testing (return before hasContent check for debugging)
+  #|       const dryRun = c.req.query('dry') === '1'
+  #|       if (dryRun) {
+  #|         return c.json({ ok: true, insights, posted: false, dryRun: true })
+  #|       }
+  #|
   #|       // Check if there's content to post
   #|       const hasContent = insights.summary || (insights.suggested_schedules?.length > 0) ||
   #|                          (insights.todo_items?.length > 0) || (insights.insights?.length > 0) ||
   #|                          (insights.shopping_suggestions?.length > 0)
   #|       if (!hasContent) {
   #|         return c.json({ ok: false, error: 'No insights generated' }, 404)
-  #|       }
-  #|
-  #|       // Support dry-run mode for testing
-  #|       const dryRun = c.req.query('dry') === '1'
-  #|       if (dryRun) {
-  #|         return c.json({ ok: true, insights, posted: false, dryRun: true })
   #|       }
   #|
   #|       // Post to Slack directly to avoid MoonBit type issues
