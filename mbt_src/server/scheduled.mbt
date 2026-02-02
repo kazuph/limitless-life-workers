@@ -202,7 +202,7 @@ extern "js" fn ffi_sched_gemini_insights(
   #|     // Sanitize JSON by removing control characters except allowed ones
   #|     textContent = textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   #|
-  #|     return JSON.parse(textContent)
+  #|     const parsed = JSON.parse(textContent); return Array.isArray(parsed) ? (parsed[0] || {}) : parsed
   #|   } catch (error) {
   #|     console.error('[Scheduled] Gemini analysis error:', error)
   #|     return null
@@ -440,7 +440,7 @@ extern "js" fn ffi_sched_gemini_daily(
   #|     // Sanitize JSON by removing control characters except allowed ones
   #|     textContent = textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   #|
-  #|     return JSON.parse(textContent)
+  #|     const parsed = JSON.parse(textContent); return Array.isArray(parsed) ? (parsed[0] || {}) : parsed
   #|   } catch (error) {
   #|     console.error('[Scheduled] Gemini daily analysis error:', error)
   #|     return null

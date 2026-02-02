@@ -314,7 +314,12 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|       // Sanitize JSON by removing control characters except allowed ones
   #|       textContent = textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
   #|
-  #|       const insights = JSON.parse(textContent)
+  #|       let insights = JSON.parse(textContent)
+  #|
+  #|       // Handle case where Gemini returns an array
+  #|       if (Array.isArray(insights)) {
+  #|         insights = insights[0] || {}
+  #|       }
   #|
   #|       // Support dry-run mode for testing (return before hasContent check for debugging)
   #|       const dryRun = c.req.query('dry') === '1'
