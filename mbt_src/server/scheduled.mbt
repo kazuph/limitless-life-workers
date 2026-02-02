@@ -105,7 +105,50 @@ extern "js" fn ffi_sched_gemini_insights(
   #| async (db, env, hoursBack, mode) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   return await toPromise(services.analyze_insights_with_gemini, db, env, hoursBack, mode)
+  #|
+  #|   // Calculate time range
+  #|   const now = new Date()
+  #|   const rangeFrom = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
+  #|   const rangeTo = now
+  #|   const rangeFromStr = rangeFrom.toISOString()
+  #|   const rangeToStr = rangeTo.toISOString()
+  #|
+  #|   // Fetch entries from DB
+  #|   const entriesResult = await db.prepare(`
+  #|     SELECT e.id, e.title, e.start_time, e.end_time,
+  #|            GROUP_CONCAT(s.content, ' ') as content
+  #|     FROM lifelog_entries e
+  #|     LEFT JOIN lifelog_segments s ON e.id = s.entry_id
+  #|     WHERE e.start_time >= ? AND e.start_time <= ?
+  #|     GROUP BY e.id
+  #|     ORDER BY e.start_time DESC
+  #|     LIMIT 50
+  #|   `).bind(rangeFromStr, rangeToStr).all()
+  #|
+  #|   const entries = (entriesResult.results || []).map(e => ({
+  #|     title: e.title || null,
+  #|     start_time: e.start_time || null,
+  #|     end_time: e.end_time || null,
+  #|     content: e.content || ''
+  #|   }))
+  #|
+  #|   if (entries.length === 0) {
+  #|     console.log('[Scheduled] No entries found for Gemini analysis')
+  #|     return null
+  #|   }
+  #|
+  #|   // Build options object
+  #|   const options = {
+  #|     hours_back: hoursBack,
+  #|     from: rangeFromStr,
+  #|     to: rangeToStr,
+  #|     max_entries: 50,
+  #|     mode: mode
+  #|   }
+  #|
+  #|   // Call Gemini with correct arguments
+  #|   const apiKey = env.GEMINI_API_KEY || ''
+  #|   return await toPromise(services.analyze_insights_with_gemini, apiKey, entries, options, rangeFromStr, rangeToStr)
   #| }
 
 ///|
@@ -243,12 +286,48 @@ extern "js" fn ffi_sched_gemini_daily(
   #| async (db, env, fromIso, toIso, maxEntries, maxSegments) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   // Note: analyze_insights_with_gemini needs to support date range
-  #|   // For now, calculate hours back from the range
+  #|
+  #|   // Fetch entries from DB for the date range
+  #|   const entriesResult = await db.prepare(`
+  #|     SELECT e.id, e.title, e.start_time, e.end_time,
+  #|            GROUP_CONCAT(s.content, ' ') as content
+  #|     FROM lifelog_entries e
+  #|     LEFT JOIN lifelog_segments s ON e.id = s.entry_id
+  #|     WHERE e.start_time >= ? AND e.start_time <= ?
+  #|     GROUP BY e.id
+  #|     ORDER BY e.start_time DESC
+  #|     LIMIT ?
+  #|   `).bind(fromIso, toIso, maxEntries).all()
+  #|
+  #|   const entries = (entriesResult.results || []).map(e => ({
+  #|     title: e.title || null,
+  #|     start_time: e.start_time || null,
+  #|     end_time: e.end_time || null,
+  #|     content: e.content || ''
+  #|   }))
+  #|
+  #|   if (entries.length === 0) {
+  #|     console.log('[Scheduled] No entries found for daily Gemini analysis')
+  #|     return null
+  #|   }
+  #|
+  #|   // Calculate hours back from the range
   #|   const from = new Date(fromIso)
   #|   const to = new Date(toIso)
   #|   const hoursBack = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60))
-  #|   return await toPromise(services.analyze_insights_with_gemini, db, env, hoursBack, 'daily_summary')
+  #|
+  #|   // Build options object
+  #|   const options = {
+  #|     hours_back: hoursBack,
+  #|     from: fromIso,
+  #|     to: toIso,
+  #|     max_entries: maxEntries,
+  #|     mode: 'daily_summary'
+  #|   }
+  #|
+  #|   // Call Gemini with correct arguments
+  #|   const apiKey = env.GEMINI_API_KEY || ''
+  #|   return await toPromise(services.analyze_insights_with_gemini, apiKey, entries, options, fromIso, toIso)
   #| }
 
 // ============================================================================

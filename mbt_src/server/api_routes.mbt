@@ -216,11 +216,53 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|   app.post('/api/slack-insights', async (c) => {
   #|     const db = c.env.LIFELOG_DB
   #|     const hours = parseInt(c.req.query('hours') || '24', 10)
+  #|     const mode = c.req.query('mode') || 'hourly_bullets'
   #|
   #|     try {
   #|       const services = await import('../services/services.js')
   #|
-  #|       const insights = await toPromise(services.analyze_insights_with_gemini, db, c.env, hours, 'hourly_bullets')
+  #|       // Calculate time range
+  #|       const now = new Date()
+  #|       const rangeFrom = new Date(now.getTime() - hours * 60 * 60 * 1000)
+  #|       const rangeTo = now
+  #|       const rangeFromStr = rangeFrom.toISOString()
+  #|       const rangeToStr = rangeTo.toISOString()
+  #|
+  #|       // Fetch entries from DB
+  #|       const entriesResult = await db.prepare(`
+  #|         SELECT e.id, e.title, e.start_time, e.end_time,
+  #|                GROUP_CONCAT(s.content, ' ') as content
+  #|         FROM lifelog_entries e
+  #|         LEFT JOIN lifelog_segments s ON e.id = s.entry_id
+  #|         WHERE e.start_time >= ? AND e.start_time <= ?
+  #|         GROUP BY e.id
+  #|         ORDER BY e.start_time DESC
+  #|         LIMIT 50
+  #|       `).bind(rangeFromStr, rangeToStr).all()
+  #|
+  #|       const entries = (entriesResult.results || []).map(e => ({
+  #|         title: e.title || null,
+  #|         start_time: e.start_time || null,
+  #|         end_time: e.end_time || null,
+  #|         content: e.content || ''
+  #|       }))
+  #|
+  #|       if (entries.length === 0) {
+  #|         return c.json({ ok: false, error: 'No entries found in time range' }, 404)
+  #|       }
+  #|
+  #|       // Build options object
+  #|       const options = {
+  #|         hours_back: hours,
+  #|         from: rangeFromStr,
+  #|         to: rangeToStr,
+  #|         max_entries: 50,
+  #|         mode: mode
+  #|       }
+  #|
+  #|       // Call Gemini with correct arguments
+  #|       const apiKey = c.env.GEMINI_API_KEY || ''
+  #|       const insights = await toPromise(services.analyze_insights_with_gemini, apiKey, entries, options, rangeFromStr, rangeToStr)
   #|       if (!insights) {
   #|         return c.json({ ok: false, error: 'No insights generated' }, 404)
   #|       }
