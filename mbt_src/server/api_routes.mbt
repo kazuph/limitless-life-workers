@@ -225,7 +225,7 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|         return c.json({ ok: false, error: 'No insights generated' }, 404)
   #|       }
   #|
-  #|       const posted = await toPromise(services.post_insights_to_slack, c.env, insights)
+  #|       const posted = await toPromise(services.post_insights_to_slack, c.env.SLACK_BOT_TOKEN, undefined, insights, undefined)
   #|       return c.json({
   #|         ok: posted,
   #|         insights,
