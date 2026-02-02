@@ -237,11 +237,14 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|         LIMIT 50
   #|       `).bind(rangeFromStr, rangeToStr).all()
   #|
+  #|       // Sanitize function to remove control characters
+  #|       const sanitize = (str) => str ? str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') : ''
+  #|
   #|       const entries = (entriesResult.results || []).map(e => ({
-  #|         title: e.title || null,
+  #|         title: sanitize(e.title) || null,
   #|         startTime: e.start_time || null,
   #|         endTime: e.end_time || null,
-  #|         content: e.content || ''
+  #|         content: sanitize(e.content) || ''
   #|       }))
   #|
   #|       if (entries.length === 0) {
