@@ -364,21 +364,30 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|       const header = '@kazuph 🎙️ *Limitless 音声分析レポート*\n_' + timestamp + '_\n\n'
   #|       const text = header + formatInsights(insights)
   #|
-  #|       const slackParams = new URLSearchParams()
-  #|       slackParams.set('token', slackToken)
-  #|       slackParams.set('channel', '#limitless-onsai-insight')
-  #|       slackParams.set('username', 'keroyon')
-  #|       slackParams.set('icon_url', 'https://emoji.slack-edge.com/T030A5CV2/keroyon/c3aa47f65017d188.png')
-  #|       slackParams.set('text', text)
-  #|       slackParams.set('link_names', 'true')
+  #|       const slackBody = {
+  #|         channel: 'C09U8QFP3DJ',
+  #|         username: 'keroyon',
+  #|         icon_url: 'https://emoji.slack-edge.com/T030A5CV2/keroyon/c3aa47f65017d188.png',
+  #|         text: text,
+  #|         link_names: true
+  #|       }
   #|
   #|       const slackResponse = await fetch('https://slack.com/api/chat.postMessage', {
   #|         method: 'POST',
-  #|         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  #|         body: slackParams.toString()
+  #|         headers: {
+  #|           'Content-Type': 'application/json',
+  #|           'Authorization': 'Bearer ' + slackToken
+  #|         },
+  #|         body: JSON.stringify(slackBody)
   #|       })
   #|
-  #|       const slackResult = await slackResponse.json()
+  #|       const slackResponseText = await slackResponse.text()
+  #|       let slackResult
+  #|       try {
+  #|         slackResult = JSON.parse(slackResponseText)
+  #|       } catch (e) {
+  #|         return c.json({ ok: false, error: 'Failed to parse Slack response', rawResponse: slackResponseText.substring(0, 500) }, 500)
+  #|       }
   #|       const posted = slackResult.ok === true
   #|
   #|       return c.json({
