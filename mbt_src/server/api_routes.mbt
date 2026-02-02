@@ -242,8 +242,8 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|
   #|       const entries = (entriesResult.results || []).map(e => ({
   #|         title: e.title || null,
-  #|         start_time: e.start_time || null,
-  #|         end_time: e.end_time || null,
+  #|         startTime: e.start_time || null,
+  #|         endTime: e.end_time || null,
   #|         content: e.content || ''
   #|       }))
   #|
@@ -251,19 +251,73 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|         return c.json({ ok: false, error: 'No entries found in time range' }, 404)
   #|       }
   #|
-  #|       // Build options object
-  #|       const options = {
-  #|         hours_back: hours,
-  #|         from: rangeFromStr,
-  #|         to: rangeToStr,
-  #|         max_entries: 50,
-  #|         mode: mode
+  #|       // Call Gemini API directly to avoid MoonBit-JS type conversion issues
+  #|       const apiKey = c.env.GEMINI_API_KEY || ''
+  #|       if (!apiKey) {
+  #|         return c.json({ ok: false, error: 'Missing GEMINI_API_KEY' }, 500)
   #|       }
   #|
-  #|       // Call Gemini with correct arguments
-  #|       const apiKey = c.env.GEMINI_API_KEY || ''
-  #|       const insights = await toPromise(services.analyze_insights_with_gemini, apiKey, entries, options, rangeFromStr, rangeToStr)
-  #|       if (!insights) {
+  #|       const systemPrompt = mode === 'hourly_bullets'
+  #|         ? `あなたは簡潔なサマリー専任のアシスタントです。以下の時間範囲の出来事を日本語で3-6行の箇条書きにまとめてください。
+  #|出力要件:
+  #|- summary フィールドのみに箇条書きで書く（例: "- ミーティングでAの仕様確認"）
+  #|- 他の配列フィールド（suggested_schedules, todo_items, insights, shopping_suggestions）は空配列で返す
+  #|- JSONのみを返し、コメントやコードフェンスは不要
+  #|- 重要度が低い雑談は入れず、行数は最小限に抑える`
+  #|         : `あなたは優秀なパーソナルアシスタントです。与えられたライフログを分析し、JSON形式で結果を返してください。`
+  #|
+  #|       const payload = {
+  #|         analysis_period: { from: rangeFromStr, to: rangeToStr },
+  #|         entries: entries
+  #|       }
+  #|
+  #|       const schema = {
+  #|         type: 'object',
+  #|         properties: {
+  #|           suggested_schedules: { type: 'array', items: { type: 'object' } },
+  #|           todo_items: { type: 'array', items: { type: 'object' } },
+  #|           insights: { type: 'array', items: { type: 'object' } },
+  #|           shopping_suggestions: { type: 'array', items: { type: 'object' } },
+  #|           summary: { type: 'string' }
+  #|         },
+  #|         required: ['suggested_schedules', 'todo_items', 'insights', 'shopping_suggestions', 'summary']
+  #|       }
+  #|
+  #|       const geminiResponse = await fetch(
+  #|         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+  #|         {
+  #|           method: 'POST',
+  #|           headers: { 'Content-Type': 'application/json' },
+  #|           body: JSON.stringify({
+  #|             contents: [{ parts: [{ text: systemPrompt + '\n\nSchema:\n' + JSON.stringify(schema) + '\n\n分析対象期間: ' + rangeFromStr + ' 〜 ' + rangeToStr + '\nライフログデータ:\n' + JSON.stringify(payload) }] }],
+  #|             generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens: 4096 }
+  #|           })
+  #|         }
+  #|       )
+  #|
+  #|       if (!geminiResponse.ok) {
+  #|         const errorText = await geminiResponse.text()
+  #|         return c.json({ ok: false, error: 'Gemini API error: ' + errorText }, 500)
+  #|       }
+  #|
+  #|       const geminiResult = await geminiResponse.json()
+  #|       const candidates = geminiResult.candidates
+  #|       if (!candidates || candidates.length === 0) {
+  #|         return c.json({ ok: false, error: 'No candidates in Gemini response' }, 500)
+  #|       }
+  #|
+  #|       const textContent = candidates[0]?.content?.parts?.[0]?.text
+  #|       if (!textContent) {
+  #|         return c.json({ ok: false, error: 'No text in Gemini response' }, 500)
+  #|       }
+  #|
+  #|       const insights = JSON.parse(textContent)
+  #|
+  #|       // Check if there's content to post
+  #|       const hasContent = insights.summary || (insights.suggested_schedules?.length > 0) ||
+  #|                          (insights.todo_items?.length > 0) || (insights.insights?.length > 0) ||
+  #|                          (insights.shopping_suggestions?.length > 0)
+  #|       if (!hasContent) {
   #|         return c.json({ ok: false, error: 'No insights generated' }, 404)
   #|       }
   #|
@@ -275,6 +329,7 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|       })
   #|     } catch (error) {
   #|       const message = error instanceof Error ? error.message : 'Unknown error'
+  #|       console.error('[slack-insights] Error:', error)
   #|       return c.json({ ok: false, error: message }, 500)
   #|     }
   #|   })

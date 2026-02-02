@@ -103,9 +103,6 @@ extern "js" fn ffi_sched_gemini_insights(
   mode : String
 ) -> @js.Promise[@core.Any] =
   #| async (db, env, hoursBack, mode) => {
-  #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
-  #|   const services = await import('../services/services.js')
-  #|
   #|   // Calculate time range
   #|   const now = new Date()
   #|   const rangeFrom = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
@@ -127,8 +124,8 @@ extern "js" fn ffi_sched_gemini_insights(
   #|
   #|   const entries = (entriesResult.results || []).map(e => ({
   #|     title: e.title || null,
-  #|     start_time: e.start_time || null,
-  #|     end_time: e.end_time || null,
+  #|     startTime: e.start_time || null,
+  #|     endTime: e.end_time || null,
   #|     content: e.content || ''
   #|   }))
   #|
@@ -137,18 +134,76 @@ extern "js" fn ffi_sched_gemini_insights(
   #|     return null
   #|   }
   #|
-  #|   // Build options object
-  #|   const options = {
-  #|     hours_back: hoursBack,
-  #|     from: rangeFromStr,
-  #|     to: rangeToStr,
-  #|     max_entries: 50,
-  #|     mode: mode
+  #|   // Call Gemini API directly to avoid MoonBit-JS type conversion issues
+  #|   const apiKey = env.GEMINI_API_KEY || ''
+  #|   if (!apiKey) {
+  #|     console.warn('[Scheduled] Missing GEMINI_API_KEY')
+  #|     return null
   #|   }
   #|
-  #|   // Call Gemini with correct arguments
-  #|   const apiKey = env.GEMINI_API_KEY || ''
-  #|   return await toPromise(services.analyze_insights_with_gemini, apiKey, entries, options, rangeFromStr, rangeToStr)
+  #|   const systemPrompt = mode === 'hourly_bullets'
+  #|     ? `あなたは簡潔なサマリー専任のアシスタントです。以下の時間範囲の出来事を日本語で3-6行の箇条書きにまとめてください。
+  #|出力要件:
+  #|- summary フィールドのみに箇条書きで書く（例: "- ミーティングでAの仕様確認"）
+  #|- 他の配列フィールド（suggested_schedules, todo_items, insights, shopping_suggestions）は空配列で返す
+  #|- JSONのみを返し、コメントやコードフェンスは不要
+  #|- 重要度が低い雑談は入れず、行数は最小限に抑える`
+  #|     : `あなたは優秀なパーソナルアシスタントです。与えられたライフログを分析し、JSON形式で結果を返してください。`
+  #|
+  #|   const payload = {
+  #|     analysis_period: { from: rangeFromStr, to: rangeToStr },
+  #|     entries: entries
+  #|   }
+  #|
+  #|   const schema = {
+  #|     type: 'object',
+  #|     properties: {
+  #|       suggested_schedules: { type: 'array', items: { type: 'object' } },
+  #|       todo_items: { type: 'array', items: { type: 'object' } },
+  #|       insights: { type: 'array', items: { type: 'object' } },
+  #|       shopping_suggestions: { type: 'array', items: { type: 'object' } },
+  #|       summary: { type: 'string' }
+  #|     },
+  #|     required: ['suggested_schedules', 'todo_items', 'insights', 'shopping_suggestions', 'summary']
+  #|   }
+  #|
+  #|   try {
+  #|     const geminiResponse = await fetch(
+  #|       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+  #|       {
+  #|         method: 'POST',
+  #|         headers: { 'Content-Type': 'application/json' },
+  #|         body: JSON.stringify({
+  #|           contents: [{ parts: [{ text: systemPrompt + '\n\nSchema:\n' + JSON.stringify(schema) + '\n\n分析対象期間: ' + rangeFromStr + ' 〜 ' + rangeToStr + '\nライフログデータ:\n' + JSON.stringify(payload) }] }],
+  #|           generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens: 4096 }
+  #|         })
+  #|       }
+  #|     )
+  #|
+  #|     if (!geminiResponse.ok) {
+  #|       const errorText = await geminiResponse.text()
+  #|       console.error('[Scheduled] Gemini API error:', errorText)
+  #|       return null
+  #|     }
+  #|
+  #|     const geminiResult = await geminiResponse.json()
+  #|     const candidates = geminiResult.candidates
+  #|     if (!candidates || candidates.length === 0) {
+  #|       console.error('[Scheduled] No candidates in Gemini response')
+  #|       return null
+  #|     }
+  #|
+  #|     const textContent = candidates[0]?.content?.parts?.[0]?.text
+  #|     if (!textContent) {
+  #|       console.error('[Scheduled] No text in Gemini response')
+  #|       return null
+  #|     }
+  #|
+  #|     return JSON.parse(textContent)
+  #|   } catch (error) {
+  #|     console.error('[Scheduled] Gemini analysis error:', error)
+  #|     return null
+  #|   }
   #| }
 
 ///|
@@ -284,9 +339,6 @@ extern "js" fn ffi_sched_gemini_daily(
   max_segments : Int
 ) -> @js.Promise[@core.Any] =
   #| async (db, env, fromIso, toIso, maxEntries, maxSegments) => {
-  #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
-  #|   const services = await import('../services/services.js')
-  #|
   #|   // Fetch entries from DB for the date range
   #|   const entriesResult = await db.prepare(`
   #|     SELECT e.id, e.title, e.start_time, e.end_time,
@@ -301,8 +353,8 @@ extern "js" fn ffi_sched_gemini_daily(
   #|
   #|   const entries = (entriesResult.results || []).map(e => ({
   #|     title: e.title || null,
-  #|     start_time: e.start_time || null,
-  #|     end_time: e.end_time || null,
+  #|     startTime: e.start_time || null,
+  #|     endTime: e.end_time || null,
   #|     content: e.content || ''
   #|   }))
   #|
@@ -311,23 +363,82 @@ extern "js" fn ffi_sched_gemini_daily(
   #|     return null
   #|   }
   #|
-  #|   // Calculate hours back from the range
-  #|   const from = new Date(fromIso)
-  #|   const to = new Date(toIso)
-  #|   const hoursBack = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60))
-  #|
-  #|   // Build options object
-  #|   const options = {
-  #|     hours_back: hoursBack,
-  #|     from: fromIso,
-  #|     to: toIso,
-  #|     max_entries: maxEntries,
-  #|     mode: 'daily_summary'
+  #|   // Call Gemini API directly to avoid MoonBit-JS type conversion issues
+  #|   const apiKey = env.GEMINI_API_KEY || ''
+  #|   if (!apiKey) {
+  #|     console.warn('[Scheduled] Missing GEMINI_API_KEY for daily summary')
+  #|     return null
   #|   }
   #|
-  #|   // Call Gemini with correct arguments
-  #|   const apiKey = env.GEMINI_API_KEY || ''
-  #|   return await toPromise(services.analyze_insights_with_gemini, apiKey, entries, options, fromIso, toIso)
+  #|   const systemPrompt = `あなたは優秀なパーソナルアシスタントです。与えられたライフログ（会話データ）を分析し、以下の4つの観点で有用な情報を抽出してください。
+  #|
+  #|分析対象：
+  #|1. **追加した方が良さそうな予定（suggested_schedules）**: 会話中で言及された予定、約束、イベントなど
+  #|2. **TODOにした方が良さそうなタスク（todo_items）**: やるべきこと、宿題、調べ物、連絡事項など
+  #|3. **インサイト・学び（insights）**: 会話から得られた気づき、新しい知識、重要な発見
+  #|4. **買い物提案（shopping_suggestions）**: 必要そうなもの、欲しいと言っていたもの、消耗品の補充など
+  #|
+  #|重要な注意事項：
+  #|- 日本語で出力してください
+  #|- 具体的で実行可能な形で提案してください
+  #|- 会話の文脈を考慮して、本当に重要なものだけを抽出してください
+  #|- 各項目は最大5個までにしてください
+  #|- 該当するものがない場合は空配列で返してください`
+  #|
+  #|   const payload = {
+  #|     analysis_period: { from: fromIso, to: toIso },
+  #|     entries: entries
+  #|   }
+  #|
+  #|   const schema = {
+  #|     type: 'object',
+  #|     properties: {
+  #|       suggested_schedules: { type: 'array', items: { type: 'object' } },
+  #|       todo_items: { type: 'array', items: { type: 'object' } },
+  #|       insights: { type: 'array', items: { type: 'object' } },
+  #|       shopping_suggestions: { type: 'array', items: { type: 'object' } },
+  #|       summary: { type: 'string' }
+  #|     },
+  #|     required: ['suggested_schedules', 'todo_items', 'insights', 'shopping_suggestions', 'summary']
+  #|   }
+  #|
+  #|   try {
+  #|     const geminiResponse = await fetch(
+  #|       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+  #|       {
+  #|         method: 'POST',
+  #|         headers: { 'Content-Type': 'application/json' },
+  #|         body: JSON.stringify({
+  #|           contents: [{ parts: [{ text: systemPrompt + '\n\nSchema:\n' + JSON.stringify(schema) + '\n\n分析対象期間: ' + fromIso + ' 〜 ' + toIso + '\nライフログデータ:\n' + JSON.stringify(payload) }] }],
+  #|           generationConfig: { responseMimeType: 'application/json', temperature: 0.7, maxOutputTokens: 4096 }
+  #|         })
+  #|       }
+  #|     )
+  #|
+  #|     if (!geminiResponse.ok) {
+  #|       const errorText = await geminiResponse.text()
+  #|       console.error('[Scheduled] Gemini API error for daily:', errorText)
+  #|       return null
+  #|     }
+  #|
+  #|     const geminiResult = await geminiResponse.json()
+  #|     const candidates = geminiResult.candidates
+  #|     if (!candidates || candidates.length === 0) {
+  #|       console.error('[Scheduled] No candidates in Gemini response for daily')
+  #|       return null
+  #|     }
+  #|
+  #|     const textContent = candidates[0]?.content?.parts?.[0]?.text
+  #|     if (!textContent) {
+  #|       console.error('[Scheduled] No text in Gemini response for daily')
+  #|       return null
+  #|     }
+  #|
+  #|     return JSON.parse(textContent)
+  #|   } catch (error) {
+  #|     console.error('[Scheduled] Gemini daily analysis error:', error)
+  #|     return null
+  #|   }
   #| }
 
 // ============================================================================
