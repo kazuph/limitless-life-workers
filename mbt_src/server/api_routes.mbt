@@ -321,16 +321,69 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|         return c.json({ ok: false, error: 'No insights generated' }, 404)
   #|       }
   #|
-  #|       const posted = await toPromise(services.post_insights_to_slack, c.env.SLACK_BOT_TOKEN, undefined, insights, undefined)
+  #|       // Support dry-run mode for testing
+  #|       const dryRun = c.req.query('dry') === '1'
+  #|       if (dryRun) {
+  #|         return c.json({ ok: true, insights, posted: false, dryRun: true })
+  #|       }
+  #|
+  #|       // Post to Slack directly to avoid MoonBit type issues
+  #|       const slackToken = c.env.SLACK_BOT_TOKEN || ''
+  #|       if (!slackToken) {
+  #|         return c.json({ ok: false, error: 'Missing SLACK_BOT_TOKEN', insights }, 500)
+  #|       }
+  #|
+  #|       // Format insights for Slack
+  #|       const formatInsights = (ins) => {
+  #|         const sections = []
+  #|         if (ins.summary) sections.push('📝 *サマリー*\n' + ins.summary)
+  #|         if (ins.suggested_schedules?.length > 0) {
+  #|           sections.push('📅 *追加した方が良さそうな予定*\n' + ins.suggested_schedules.map(s => `• *${s.title}*\n   ${s.description}`).join('\n'))
+  #|         }
+  #|         if (ins.todo_items?.length > 0) {
+  #|           sections.push('✅ *TODOにした方が良さそうなタスク*\n' + ins.todo_items.map(t => `• *${t.title}*\n   ${t.description}`).join('\n'))
+  #|         }
+  #|         if (ins.insights?.length > 0) {
+  #|           sections.push('🧠 *インサイト・学び*\n' + ins.insights.map(i => `💡 *${i.category}*\n   ${i.content}`).join('\n'))
+  #|         }
+  #|         if (ins.shopping_suggestions?.length > 0) {
+  #|           sections.push('🛒 *買い物提案*\n' + ins.shopping_suggestions.map(s => `• *${s.item}*\n   ${s.reason}`).join('\n'))
+  #|         }
+  #|         return sections.join('\n\n---\n\n')
+  #|       }
+  #|
+  #|       const timestamp = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+  #|       const header = '@kazuph 🎙️ *Limitless 音声分析レポート*\n_' + timestamp + '_\n\n'
+  #|       const text = header + formatInsights(insights)
+  #|
+  #|       const slackParams = new URLSearchParams()
+  #|       slackParams.set('token', slackToken)
+  #|       slackParams.set('channel', '#limitless-onsai-insight')
+  #|       slackParams.set('username', 'keroyon')
+  #|       slackParams.set('icon_url', 'https://emoji.slack-edge.com/T030A5CV2/keroyon/c3aa47f65017d188.png')
+  #|       slackParams.set('text', text)
+  #|       slackParams.set('link_names', 'true')
+  #|
+  #|       const slackResponse = await fetch('https://slack.com/api/chat.postMessage', {
+  #|         method: 'POST',
+  #|         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  #|         body: slackParams.toString()
+  #|       })
+  #|
+  #|       const slackResult = await slackResponse.json()
+  #|       const posted = slackResult.ok === true
+  #|
   #|       return c.json({
   #|         ok: posted,
   #|         insights,
-  #|         posted
+  #|         posted,
+  #|         slackError: slackResult.ok ? undefined : slackResult.error
   #|       })
   #|     } catch (error) {
-  #|       const message = error instanceof Error ? error.message : 'Unknown error'
+  #|       const message = error instanceof Error ? error.message : String(error)
+  #|       const stack = error instanceof Error ? error.stack : undefined
   #|       console.error('[slack-insights] Error:', error)
-  #|       return c.json({ ok: false, error: message }, 500)
+  #|       return c.json({ ok: false, error: message, stack }, 500)
   #|     }
   #|   })
   #|
