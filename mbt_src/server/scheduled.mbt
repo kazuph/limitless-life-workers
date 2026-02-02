@@ -110,15 +110,12 @@ extern "js" fn ffi_sched_gemini_insights(
   #|   const rangeFromStr = rangeFrom.toISOString()
   #|   const rangeToStr = rangeTo.toISOString()
   #|
-  #|   // Fetch entries from DB
+  #|   // Fetch entries from DB (using markdown field since segments may be empty)
   #|   const entriesResult = await db.prepare(`
-  #|     SELECT e.id, e.title, e.start_time, e.end_time,
-  #|            GROUP_CONCAT(s.content, ' ') as content
-  #|     FROM lifelog_entries e
-  #|     LEFT JOIN lifelog_segments s ON e.id = s.entry_id
-  #|     WHERE e.start_time >= ? AND e.start_time <= ?
-  #|     GROUP BY e.id
-  #|     ORDER BY e.start_time DESC
+  #|     SELECT id, title, start_time, end_time, markdown as content
+  #|     FROM lifelog_entries
+  #|     WHERE start_time >= ? AND start_time <= ?
+  #|     ORDER BY start_time DESC
   #|     LIMIT 50
   #|   `).bind(rangeFromStr, rangeToStr).all()
   #|
@@ -339,15 +336,12 @@ extern "js" fn ffi_sched_gemini_daily(
   max_segments : Int
 ) -> @js.Promise[@core.Any] =
   #| async (db, env, fromIso, toIso, maxEntries, maxSegments) => {
-  #|   // Fetch entries from DB for the date range
+  #|   // Fetch entries from DB for the date range (using markdown field since segments may be empty)
   #|   const entriesResult = await db.prepare(`
-  #|     SELECT e.id, e.title, e.start_time, e.end_time,
-  #|            GROUP_CONCAT(s.content, ' ') as content
-  #|     FROM lifelog_entries e
-  #|     LEFT JOIN lifelog_segments s ON e.id = s.entry_id
-  #|     WHERE e.start_time >= ? AND e.start_time <= ?
-  #|     GROUP BY e.id
-  #|     ORDER BY e.start_time DESC
+  #|     SELECT id, title, start_time, end_time, markdown as content
+  #|     FROM lifelog_entries
+  #|     WHERE start_time >= ? AND start_time <= ?
+  #|     ORDER BY start_time DESC
   #|     LIMIT ?
   #|   `).bind(fromIso, toIso, maxEntries).all()
   #|
