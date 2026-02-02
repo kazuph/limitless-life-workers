@@ -118,7 +118,7 @@ extern "js" fn ffi_sched_post_slack(
   #| async (env, insights, header) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   return await toPromise(services.post_insights_to_slack, env, insights, header ?? undefined)
+  #|   return await toPromise(services.post_insights_to_slack, env.SLACK_BOT_TOKEN, undefined, insights, header ?? undefined)
   #| }
 
 ///|
@@ -131,7 +131,7 @@ extern "js" fn ffi_sched_post_error(
   #| async (env, errorMessage, context) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   await toPromise(services.post_error_to_slack, env, new Error(errorMessage), context)
+  #|   await toPromise(services.post_error_to_slack, env.SLACK_BOT_TOKEN, undefined, errorMessage, context)
   #| }
 
 ///|
@@ -144,7 +144,7 @@ extern "js" fn ffi_sched_post_warning(
   #| async (env, message, context) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   await toPromise(services.post_warning_to_slack, env, message, context)
+  #|   await toPromise(services.post_warning_to_slack, env.SLACK_BOT_TOKEN, undefined, message, context)
   #| }
 
 ///|
