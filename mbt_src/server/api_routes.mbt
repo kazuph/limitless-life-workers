@@ -387,6 +387,78 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|     }
   #|   })
   #|
+  #|   // GET /api/debug/gemini-test - Test Gemini API directly
+  #|   app.get('/api/debug/gemini-test', async (c) => {
+  #|     const hours = parseInt(c.req.query('hours') || '96', 10)
+  #|     const steps = { dbConnect: false, fetchEntries: false, entriesFound: 0, geminiCall: false, geminiParse: false }
+  #|
+  #|     try {
+  #|       const db = c.env.LIFELOG_DB
+  #|       steps.dbConnect = true
+  #|
+  #|       const now = new Date()
+  #|       const rangeFrom = new Date(now.getTime() - hours * 60 * 60 * 1000)
+  #|       const rangeTo = now
+  #|       const rangeFromStr = rangeFrom.toISOString()
+  #|       const rangeToStr = rangeTo.toISOString()
+  #|
+  #|       const entriesResult = await db.prepare(`
+  #|         SELECT e.id, e.title, e.start_time, e.end_time,
+  #|                GROUP_CONCAT(s.content, ' ') as content
+  #|         FROM lifelog_entries e
+  #|         LEFT JOIN lifelog_segments s ON e.id = s.entry_id
+  #|         WHERE e.start_time >= ? AND e.start_time <= ?
+  #|         GROUP BY e.id
+  #|         ORDER BY e.start_time DESC
+  #|         LIMIT 10
+  #|       `).bind(rangeFromStr, rangeToStr).all()
+  #|       steps.fetchEntries = true
+  #|
+  #|       const entries = (entriesResult.results || []).map(e => ({
+  #|         title: e.title || null,
+  #|         startTime: e.start_time || null,
+  #|         endTime: e.end_time || null,
+  #|         content: (e.content || '').slice(0, 200)
+  #|       }))
+  #|       steps.entriesFound = entries.length
+  #|
+  #|       if (entries.length === 0) {
+  #|         return c.json({ ok: true, steps, message: 'No entries in range', range: { from: rangeFromStr, to: rangeToStr } })
+  #|       }
+  #|
+  #|       const apiKey = c.env.GEMINI_API_KEY || ''
+  #|       if (!apiKey) {
+  #|         return c.json({ ok: false, steps, error: 'Missing GEMINI_API_KEY' })
+  #|       }
+  #|
+  #|       const geminiResponse = await fetch(
+  #|         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+  #|         {
+  #|           method: 'POST',
+  #|           headers: { 'Content-Type': 'application/json' },
+  #|           body: JSON.stringify({
+  #|             contents: [{ parts: [{ text: 'Return JSON: {"summary":"test ok"}' }] }],
+  #|             generationConfig: { responseMimeType: 'application/json' }
+  #|           })
+  #|         }
+  #|       )
+  #|       steps.geminiCall = true
+  #|
+  #|       if (!geminiResponse.ok) {
+  #|         const errorText = await geminiResponse.text()
+  #|         return c.json({ ok: false, steps, error: 'Gemini API error', details: errorText })
+  #|       }
+  #|
+  #|       const geminiResult = await geminiResponse.json()
+  #|       const textContent = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text
+  #|       steps.geminiParse = true
+  #|
+  #|       return c.json({ ok: true, steps, geminiResult: textContent, entries: entries.slice(0, 3) })
+  #|     } catch (error) {
+  #|       return c.json({ ok: false, steps, error: String(error), stack: error?.stack })
+  #|     }
+  #|   })
+  #|
   #|   // GET /api/debug/entries - Debug endpoint for entries
   #|   app.get('/api/debug/entries', async (c) => {
   #|     const db = c.env.LIFELOG_DB
