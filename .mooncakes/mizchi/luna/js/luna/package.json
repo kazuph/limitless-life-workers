@@ -1,0 +1,63 @@
+{
+  "name": "@luna_ui/luna",
+  "version": "0.4.0",
+  "description": "Fine-grained reactive UI library for Moonbit/JS",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "@luna_ui/luna": "./dist/cli.mjs",
+    "luna": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./css": {
+      "types": "./dist/css/index.d.ts",
+      "import": "./dist/css/index.js"
+    },
+    "./css/runtime": {
+      "types": "./dist/css/runtime.d.ts",
+      "import": "./dist/css/runtime.js"
+    },
+    "./vite-plugin": {
+      "types": "./dist/vite-plugin.d.ts",
+      "import": "./dist/vite-plugin.js"
+    },
+    "./event-utils": {
+      "types": "./dist/event-utils.d.ts",
+      "import": "./dist/event-utils.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "import": "./dist/jsx-dev-runtime.js"
+    }
+  },
+  "scripts": {
+    "prepublishOnly": "pnpm build",
+    "build": "tsdown",
+    "test": "vitest run --root ../..",
+    "build:examples": "vite build examples"
+  },
+  "devDependencies": {
+    "global-jsdom": "^27.0.0",
+    "jsdom": "^27.3.0",
+    "preact": "^10.28.0",
+    "tsdown": "^0.18.2"
+  },
+  "repository": {
+    "directory": "js/luna",
+    "url": "https://github.com/mizchi/luna.mbt"
+  },
+  "files": [
+    "dist",
+    "tests",
+    "src"
+  ]
+}

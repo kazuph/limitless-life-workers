@@ -1,0 +1,18 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/jsonschema/codegen"
+
+import(
+  "mizchi/jsonschema/types"
+)
+
+// Values
+pub fn generate(Json, Array[@types.JsonPointer], root_name? : String, include_refs? : Bool, prefix? : String) -> Result[String, String] raise
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

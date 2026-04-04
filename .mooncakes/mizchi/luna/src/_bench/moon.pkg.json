@@ -1,0 +1,33 @@
+{
+  "supported-targets": [
+    "js"
+  ],
+  "import": [
+    {
+      "path": "mizchi/luna/luna",
+      "alias": "luna"
+    },
+    "mizchi/luna/luna/signal",
+    {
+      "path": "mizchi/luna/luna/render",
+      "alias": "ssr"
+    },
+    {
+      "path": "mizchi/luna/luna/dom/client",
+      "alias": "client"
+    },
+    {
+      "path": "mizchi/luna/luna/dom/client/repair",
+      "alias": "fixable"
+    },
+    {
+      "path": "mizchi/js/browser/dom",
+      "alias": "js_dom"
+    },
+    {
+      "path": "mizchi/js/core",
+      "alias": "js"
+    },
+    "mizchi/npm_typed/global_jsdom"
+  ]
+}

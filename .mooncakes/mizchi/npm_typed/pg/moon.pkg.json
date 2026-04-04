@@ -1,0 +1,9 @@
+{
+  "supported-targets": [
+    "js"
+  ],
+  "import": [
+    "mizchi/js/core"
+  ],
+  "warn-list": "-4-6-7-27"
+}

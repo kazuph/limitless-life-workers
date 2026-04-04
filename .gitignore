@@ -36,7 +36,7 @@ lerna-debug.log*
 
 # MoonBit build artifacts
 target/
-.mooncakes/
+# .mooncakes/ is committed for CI build reproducibility
 mbt/
 
 # Sol/Luna generated files

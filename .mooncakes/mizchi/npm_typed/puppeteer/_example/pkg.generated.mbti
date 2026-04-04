@@ -1,0 +1,20 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/npm_typed/puppeteer/_example"
+
+// Values
+pub fn cdp_example() -> Unit
+
+pub fn coverage_example() -> Unit
+
+pub fn element_example() -> Unit
+
+pub fn screenshot_example() -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

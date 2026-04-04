@@ -1,0 +1,123 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/npm_typed/valibot"
+
+import(
+  "mizchi/js/core"
+)
+
+// Values
+pub fn any_() -> Schema[@core.Any]
+
+pub fn[T] array(Schema[T]) -> Schema[Array[T]]
+
+pub fn boolean() -> Schema[Bool]
+
+pub fn email() -> Action
+
+pub fn endsWith(String) -> Action
+
+pub fn finite() -> Action
+
+pub fn includes(String) -> Action
+
+pub fn integer() -> Action
+
+pub fn[T] is_(Schema[T], @core.Any) -> Bool
+
+pub fn length(Int) -> Action
+
+pub fn literal_bool(Bool) -> Schema[Bool]
+
+pub fn literal_int(Int) -> Schema[Int]
+
+pub fn literal_string(String) -> Schema[String]
+
+pub fn maxLength(Int) -> Action
+
+pub fn maxValue(Double) -> Action
+
+pub fn minLength(Int) -> Action
+
+pub fn minValue(Double) -> Action
+
+pub fn[T] nullable(Schema[T]) -> Schema[T?]
+
+pub fn number() -> Schema[Int]
+
+pub fn number_double() -> Schema[Double]
+
+pub fn object(@core.Any) -> Schema[@core.Any]
+
+pub fn[T] object_typed(@core.Any) -> Schema[T]
+
+pub fn[T] optional(Schema[T]) -> Schema[T?]
+
+pub fn[T] parse(Schema[T], @core.Any) -> T
+
+pub fn picklist(Array[String]) -> Schema[String]
+
+pub fn[T] pipe(Schema[T], Array[Action]) -> Schema[T]
+
+pub fn[V] record(Schema[V]) -> Schema[@core.Any]
+
+pub fn regex(@core.Any) -> Action
+
+pub fn[T] safeParse(Schema[T], @core.Any) -> SafeParseResult[T]
+
+pub fn shape() -> @core.Any
+
+pub fn startsWith(String) -> Action
+
+pub fn string_() -> Schema[String]
+
+pub fn toLowerCase() -> Action
+
+pub fn toUpperCase() -> Action
+
+pub fn trim() -> Action
+
+pub fn tuple(Array[@core.Any]) -> Schema[@core.Any]
+
+pub fn union(Array[@core.Any]) -> Schema[@core.Any]
+
+pub fn unknown() -> Schema[@core.Any]
+
+pub fn url() -> Action
+
+pub fn uuid() -> Action
+
+// Errors
+
+// Types and methods
+#external
+pub type Action
+pub fn Action::to_any(Self) -> @core.Any
+
+#external
+pub type Issue
+pub fn Issue::expected(Self) -> String?
+pub fn Issue::input(Self) -> @core.Any
+pub fn Issue::kind(Self) -> String
+pub fn Issue::message(Self) -> String
+pub fn Issue::path(Self) -> @core.Any
+pub fn Issue::received(Self) -> String?
+pub fn Issue::to_any(Self) -> @core.Any
+pub fn Issue::type_(Self) -> String
+
+#external
+pub type SafeParseResult[_]
+pub fn[T] SafeParseResult::issues(Self[T]) -> Array[Issue]
+pub fn[T] SafeParseResult::output(Self[T]) -> T
+pub fn[T] SafeParseResult::output_option(Self[T]) -> T?
+pub fn[T] SafeParseResult::success(Self[T]) -> Bool
+pub fn[T] SafeParseResult::to_any(Self[T]) -> @core.Any
+pub fn[T] SafeParseResult::typed(Self[T]) -> Bool
+
+#external
+pub type Schema[_]
+pub fn[T] Schema::to_any(Self[T]) -> @core.Any
+
+// Type aliases
+
+// Traits
+

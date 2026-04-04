@@ -1,0 +1,58 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/jsonschema/validate"
+
+import(
+  "mizchi/jsonschema/parser"
+  "mizchi/jsonschema/types"
+  "moonbitlang/core/set"
+)
+
+// Values
+pub fn build_resolver(Json) -> Resolver raise ParseError
+
+pub fn build_validator(Json) -> Validator raise ParseError
+
+pub fn collect_refs(Json) -> @set.Set[String]
+
+// Errors
+pub suberror ParseError {
+  ParserError(@parser.ParseError)
+  PointerParseError(String)
+  InvalidSchema(String)
+}
+
+// Types and methods
+pub struct Resolver {
+  // private fields
+}
+pub fn Resolver::empty() -> Self
+pub fn Resolver::get_refs(Self) -> Array[@types.JsonPointer]
+pub fn Resolver::has(Self, @types.JsonPointer) -> Bool
+pub fn Resolver::new(Json) -> Self raise ParseError
+pub fn Resolver::resolve(Self, @types.JsonPointer) -> @types.JsonSchema?
+
+pub struct ValidationError {
+  json_path : @types.JsonPointer
+  schema_path : @types.JsonPointer
+  message : String
+  children : Array[ValidationError]?
+}
+pub fn ValidationError::new(Json, @types.JsonPointer, @types.JsonPointer, String, children? : Array[Self]) -> Self
+pub impl Eq for ValidationError
+pub impl Show for ValidationError
+
+pub struct Validator {
+  schema : @types.JsonSchema
+  resolver : Resolver
+}
+pub fn Validator::from_schema(@types.JsonSchema) -> Self
+pub fn Validator::validate(Self, Json) -> Result[Unit, Array[ValidationError]]
+
+// Type aliases
+
+// Traits
+pub trait Validatable {
+  validate(Self, Json, resolver~ : Resolver, json_path~ : @types.JsonPointer, schema_path~ : @types.JsonPointer) -> Array[ValidationError]
+}
+pub impl Validatable for @types.JsonSchema
+

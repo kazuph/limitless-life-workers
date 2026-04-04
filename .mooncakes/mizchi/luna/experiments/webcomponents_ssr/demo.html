@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Components SSR Framework Demo</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #fafafa;
+    }
+    h1 { color: #333; }
+    section {
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    code { font-family: 'SF Mono', Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <h1>Web Components SSR Framework</h1>
+  <p>統一的なコンポーネント定義からSSRとHydrationを行うフレームワーク</p>
+
+  <section>
+    <h2>Counter (SSR済み)</h2>
+    <p>サーバーで <code>renderToString(Counter, { count: 10 })</code> を実行した想定</p>
+
+    <!-- SSR出力 (サーバーで生成される想定) -->
+    <my-counter data-state="{&quot;count&quot;:10}">
+      <template shadowrootmode="open">
+        <style>
+          :host { display: block; padding: 16px; border: 2px solid #4a90d9; border-radius: 8px; }
+          .display { font-size: 2rem; text-align: center; margin: 10px 0; }
+          .buttons { display: flex; gap: 10px; justify-content: center; }
+          button { padding: 8px 20px; font-size: 1.2rem; border: none; border-radius: 4px; cursor: pointer; }
+          .dec { background: #ff6b6b; color: white; }
+          .inc { background: #51cf66; color: white; }
+        </style>
+        <div class="display">Count: 10</div>
+        <div class="buttons">
+          <button class="dec" data-on-click="decrement">-</button>
+          <button class="inc" data-on-click="increment">+</button>
+        </div>
+      </template>
+    </my-counter>
+  </section>
+
+  <section>
+    <h2>TODO List (SSR済み)</h2>
+    <p>サーバーで初期アイテム付きでレンダリング</p>
+
+    <my-todo data-state="{&quot;items&quot;:[&quot;買い物&quot;,&quot;掃除&quot;,&quot;洗濯&quot;],&quot;inputValue&quot;:&quot;&quot;}">
+      <template shadowrootmode="open">
+        <style>
+          :host { display: block; }
+          .add-form { display: flex; gap: 8px; margin-bottom: 12px; }
+          input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+          .add-btn { background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+          ul { list-style: none; padding: 0; margin: 0; }
+          li { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+          .del-btn { background: #ff5252; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+        </style>
+        <div class="add-form">
+          <input type="text" placeholder="新しいタスク..." value="" data-on-input="updateInput" data-on-keypress="handleKeypress" />
+          <button class="add-btn" data-on-click="add">追加</button>
+        </div>
+        <ul>
+          <li><span>買い物</span><button class="del-btn" data-on-click="delete" data-index="0">削除</button></li>
+          <li><span>掃除</span><button class="del-btn" data-on-click="delete" data-index="1">削除</button></li>
+          <li><span>洗濯</span><button class="del-btn" data-on-click="delete" data-index="2">削除</button></li>
+        </ul>
+      </template>
+    </my-todo>
+  </section>
+
+  <section>
+    <h2>Counter (CSR - 比較用)</h2>
+    <p>SSRなしでJavaScriptのみでレンダリング</p>
+    <my-counter></my-counter>
+  </section>
+
+  <section>
+    <h2>フレームワーク設計</h2>
+    <pre><code>// 1. コンポーネント定義 (共通)
+const Counter = defineComponent({
+  name: 'my-counter',
+  styles: `...`,
+  initialState: { count: 0 },
+  render(state) {
+    return `&lt;div&gt;Count: ${state.count}&lt;/div&gt;...`;
+  },
+  handlers: {
+    increment: (state) => ({ count: state.count + 1 }),
+  },
+});
+
+// 2. サーバーサイド (Node.js)
+const html = renderToString(Counter, { count: 10 });
+
+// 3. クライアントサイド (Browser)
+registerComponent(Counter);  // Hydration</code></pre>
+  </section>
+
+  <section>
+    <h2>処理フロー</h2>
+    <pre><code>┌─────────────────────────────────────────────────────┐
+│ Server                                              │
+│                                                     │
+│  Component Def ──► renderToString() ──► HTML        │
+│       │                                    │        │
+│       │            ┌──────────────────────┐│        │
+│       │            │ &lt;my-counter&gt;        ││        │
+│       │            │   &lt;template&gt;...     ││        │
+│       │            │   data-state="..."  ││        │
+│       │            │ &lt;/my-counter&gt;       ││        │
+│       │            └──────────────────────┘│        │
+└───────┼────────────────────────────────────┼────────┘
+        │                                    │
+        │              HTTP Response         │
+        │                                    ▼
+┌───────┼────────────────────────────────────┬────────┐
+│ Browser                                    │        │
+│       │                                    │        │
+│       │  HTML Parse ──► Declarative Shadow DOM      │
+│       │                 (即座に表示)                │
+│       │                                    │        │
+│       ▼                                    │        │
+│  registerComponent() ──► customElements.define()    │
+│       │                                              │
+│       │  connectedCallback()                        │
+│       │    ├── shadowRoot exists? ──► Hydrate       │
+│       │    │   └── attachEventListeners()           │
+│       │    └── no shadowRoot ──► CSR Render         │
+│       │                                              │
+│       ▼                                              │
+│  Interactive Component                              │
+└─────────────────────────────────────────────────────┘</code></pre>
+  </section>
+
+  <section>
+    <h2>Hydration状態</h2>
+    <pre id="status">JavaScript読み込み前...</pre>
+  </section>
+
+  <script src="framework.js"></script>
+  <script>
+    // コンポーネントを登録 (Hydration)
+    WCFramework.registerComponent(WCFramework.Counter);
+    WCFramework.registerComponent(WCFramework.TodoList);
+
+    // 状態表示
+    document.getElementById('status').textContent = `Hydration完了: ${new Date().toLocaleTimeString()}
+
+コンポーネント状態:
+- my-counter (SSR): ${document.querySelector('my-counter[data-state]').shadowRoot ? 'Hydrated ✓' : '✗'}
+- my-todo (SSR): ${document.querySelector('my-todo').shadowRoot ? 'Hydrated ✓' : '✗'}
+- my-counter (CSR): ${document.querySelectorAll('my-counter')[1]?.shadowRoot ? 'Rendered ✓' : '✗'}`;
+  </script>
+</body>
+</html>

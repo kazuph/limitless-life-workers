@@ -1,0 +1,13 @@
+{
+  "import": [
+    "moonbitlang/async/internal/coroutine"
+  ],
+  "test-import": [
+    "moonbitlang/async"
+  ],
+  "targets": {
+    "js_async.mbt": [ "js" ],
+    "unimplemented.mbt": [ "native" ],
+    "js_async_test.mbt": [ "js" ]
+  }
+}

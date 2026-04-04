@@ -1,0 +1,8 @@
+{
+  "supported-targets": ["js"],
+  "is-main": true,
+  "import": [
+    "mizchi/npm_typed/_examples/realworld/server",
+    "moonbitlang/async"
+  ]
+}

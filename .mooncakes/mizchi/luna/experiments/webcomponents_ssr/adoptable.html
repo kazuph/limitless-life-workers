@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adoptable Stylesheets + SSR</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    h1 { color: #333; }
+    section {
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 600px) {
+      .comparison { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>CSS共有パターン比較</h1>
+
+  <section>
+    <h2>3つのCSS共有方式</h2>
+    <pre>
+1. &lt;link rel="stylesheet"&gt; (nested.html)
+   - 各Shadow DOM内に &lt;link&gt; を配置
+   - ブラウザがHTTPキャッシュで重複リクエストを防ぐ
+   - CSSの解析は各Shadow DOM で個別に行われる
+
+2. Adoptable Stylesheets (このページ)
+   - CSSStyleSheet オブジェクトを JS で作成
+   - 複数の Shadow DOM で同一オブジェクトを共有
+   - 解析コストが1回で済む（メモリ効率◎）
+
+3. CSS Custom Properties (継承)
+   - :host で CSS 変数を定義
+   - 子コンポーネントで var(--xxx) で参照
+   - 構造的なスタイルは共有できない
+    </pre>
+  </section>
+
+  <section>
+    <h2>Adoptable Stylesheets デモ</h2>
+    <p>同一の CSSStyleSheet オブジェクトを5つのコンポーネントで共有</p>
+
+    <div class="comparison">
+      <div>
+        <h3>SSR + Adoptable Stylesheets</h3>
+        <!-- SSRされたコンポーネント (スタイルはJSで注入) -->
+        <adopt-card data-state='{"title":"Card A","count":3}'>
+          <template shadowrootmode="open">
+            <!-- SSR時はスタイルなし or 最小限のインラインスタイル -->
+            <div class="card">
+              <div class="card-header">Card A</div>
+              <div class="card-body">
+                <span class="count">3</span>
+                <div class="actions">
+                  <button class="btn btn-danger" data-action="dec">-</button>
+                  <button class="btn btn-primary" data-action="inc">+</button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </adopt-card>
+
+        <adopt-card data-state='{"title":"Card B","count":7}'>
+          <template shadowrootmode="open">
+            <div class="card">
+              <div class="card-header">Card B</div>
+              <div class="card-body">
+                <span class="count">7</span>
+                <div class="actions">
+                  <button class="btn btn-danger" data-action="dec">-</button>
+                  <button class="btn btn-primary" data-action="inc">+</button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </adopt-card>
+      </div>
+
+      <div>
+        <h3>CSR (比較用)</h3>
+        <adopt-card></adopt-card>
+        <adopt-card data-state='{"title":"Dynamic","count":0}'></adopt-card>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>メモリ使用状況</h2>
+    <pre id="memory-status">計測中...</pre>
+  </section>
+
+  <section>
+    <h2>実装コード</h2>
+    <pre>
+// 共有スタイルシート（1回だけ作成）
+const sharedStyles = new CSSStyleSheet();
+sharedStyles.replaceSync(`
+  .card { ... }
+  .btn { ... }
+`);
+
+class MyComponent extends HTMLElement {
+  connectedCallback() {
+    // 既存の shadowRoot（SSR）または新規作成
+    if (!this.shadowRoot) {
+      this.attachShadow({ mode: 'open' });
+    }
+
+    // 共有スタイルシートを採用
+    this.shadowRoot.adoptedStyleSheets = [sharedStyles];
+  }
+}
+    </pre>
+  </section>
+
+  <script>
+    // ========================================
+    // 共有スタイルシート（1回だけ作成・解析）
+    // ========================================
+    const sharedCardStyles = new CSSStyleSheet();
+    sharedCardStyles.replaceSync(`
+      :host {
+        display: block;
+        margin-bottom: 12px;
+      }
+      .card {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        background: white;
+      }
+      .card-header {
+        padding: 12px 16px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        font-weight: 600;
+      }
+      .card-body {
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .count {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #333;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+      .btn:active {
+        transform: scale(0.95);
+      }
+      .btn-primary {
+        background: #3498db;
+        color: white;
+      }
+      .btn-danger {
+        background: #e74c3c;
+        color: white;
+      }
+    `);
+
+    // スタイルシートの参照カウント
+    let adoptCount = 0;
+
+    // ========================================
+    // コンポーネント定義
+    // ========================================
+    class AdoptCard extends HTMLElement {
+      constructor() {
+        super();
+        this._isSSR = !!this.shadowRoot;
+
+        if (!this._isSSR) {
+          this.attachShadow({ mode: 'open' });
+        }
+
+        this.state = JSON.parse(this.dataset.state || '{"title":"New Card","count":0}');
+      }
+
+      connectedCallback() {
+        // Adoptable Stylesheets を適用
+        // 同一オブジェクトを複数のShadow DOMで共有
+        this.shadowRoot.adoptedStyleSheets = [sharedCardStyles];
+        adoptCount++;
+
+        if (this._isSSR) {
+          this.hydrate();
+        } else {
+          this.render();
+        }
+      }
+
+      hydrate() {
+        this.attachEventListeners();
+        console.log(`[adopt-card] Hydrated: ${this.state.title}`);
+      }
+
+      render() {
+        this.shadowRoot.innerHTML = `
+          <div class="card">
+            <div class="card-header">${this.escapeHtml(this.state.title)}</div>
+            <div class="card-body">
+              <span class="count">${this.state.count}</span>
+              <div class="actions">
+                <button class="btn btn-danger" data-action="dec">-</button>
+                <button class="btn btn-primary" data-action="inc">+</button>
+              </div>
+            </div>
+          </div>
+        `;
+        this.attachEventListeners();
+        console.log(`[adopt-card] Rendered: ${this.state.title}`);
+      }
+
+      attachEventListeners() {
+        this.shadowRoot.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (btn.dataset.action === 'inc') this.state.count++;
+            if (btn.dataset.action === 'dec') this.state.count--;
+            this.updateCount();
+          });
+        });
+      }
+
+      updateCount() {
+        const countEl = this.shadowRoot.querySelector('.count');
+        if (countEl) countEl.textContent = this.state.count;
+      }
+
+      escapeHtml(str) {
+        return str.replace(/[&<>"']/g, c => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+      }
+    }
+    customElements.define('adopt-card', AdoptCard);
+
+    // ========================================
+    // メモリ・パフォーマンス計測
+    // ========================================
+    setTimeout(() => {
+      const status = [];
+
+      status.push('=== Adoptable Stylesheets 状況 ===');
+      status.push(`CSSStyleSheet オブジェクト数: 1`);
+      status.push(`採用したShadow DOM数: ${adoptCount}`);
+      status.push('');
+
+      // 各Shadow DOMのadoptedStyleSheetsを確認
+      const cards = document.querySelectorAll('adopt-card');
+      const sheets = new Set();
+
+      cards.forEach((card, i) => {
+        const adopted = card.shadowRoot?.adoptedStyleSheets || [];
+        adopted.forEach(sheet => sheets.add(sheet));
+        status.push(`adopt-card[${i}]: adoptedStyleSheets.length = ${adopted.length}`);
+      });
+
+      status.push('');
+      status.push(`ユニークな CSSStyleSheet オブジェクト: ${sheets.size}個`);
+      status.push(sheets.size === 1
+        ? '✓ 全コンポーネントが同一オブジェクトを共有'
+        : '✗ 複数のオブジェクトが存在');
+
+      status.push('');
+      status.push('=== 比較: <link> vs Adoptable Stylesheets ===');
+      status.push('<link rel="stylesheet">:');
+      status.push('  - HTTPキャッシュでリクエストは1回');
+      status.push('  - CSSの解析は各Shadow DOMで個別実行');
+      status.push('  - メモリ: 解析結果が複数存在する可能性');
+      status.push('');
+      status.push('Adoptable Stylesheets:');
+      status.push('  - CSSStyleSheet オブジェクトは1つ');
+      status.push('  - 解析も1回のみ');
+      status.push('  - メモリ: 確実に共有（効率的）');
+      status.push('  - 動的なスタイル変更が全コンポーネントに反映');
+
+      // メモリ情報（利用可能な場合）
+      if (performance.memory) {
+        status.push('');
+        status.push('=== メモリ使用量 ===');
+        status.push(`usedJSHeapSize: ${(performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`);
+        status.push(`totalJSHeapSize: ${(performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2)} MB`);
+      }
+
+      document.getElementById('memory-status').textContent = status.join('\n');
+    }, 100);
+  </script>
+</body>
+</html>

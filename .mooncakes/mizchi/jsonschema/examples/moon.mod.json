@@ -1,0 +1,19 @@
+{
+  "name": "mizchi/jsonschema-example",
+  "version": "0.1.0",
+  "deps": {
+    "mizchi/jsonschema": {
+      "path": ".."
+    },
+    "moonbitlang/x": "0.4.34",
+    "moonbitlang/async": "0.6.3"
+  },
+  "readme": "README.mbt.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": [],
+  "description": "",
+  "warn-list": "-29-28-6",
+  "alert-list": "-24-test_import_all-28",
+  "preferred-target": "native"
+}

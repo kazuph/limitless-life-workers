@@ -1,0 +1,26 @@
+{
+  "supported-targets": ["js"],
+  "import": [
+    { "path": "mizchi/luna/luna", "alias": "luna" },
+    "mizchi/luna/luna/signal",
+    { "path": "mizchi/js/browser/dom", "alias": "js_dom" },
+    { "path": "mizchi/luna/luna/dom/element", "alias": "dom" },
+    { "path": "mizchi/luna/luna/dom/client", "alias": "client" },
+    { "path": "mizchi/js/core", "alias": "js" }
+  ],
+  "link": {
+    "js": {
+      "exports": [
+        "hydrate_signal_effect",
+        "hydrate_dynamic_attrs",
+        "hydrate_show_toggle",
+        "hydrate_for_each",
+        "hydrate_events",
+        "hydrate_sortable_list",
+        "hydrate_input_binding",
+        "hydrate_element_ref"
+      ],
+      "format": "esm"
+    }
+  }
+}

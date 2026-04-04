@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/npm_typed/oxc_minify"
+
+// Values
+pub fn minify(String) -> String
+
+pub async fn minify_async(String, String) -> MinifyResult
+
+pub fn minify_sync(String, String) -> MinifyResult
+
+// Errors
+
+// Types and methods
+pub(all) struct MinifyResult {
+  code : String
+  errors : Array[String]
+}
+
+// Type aliases
+
+// Traits
+

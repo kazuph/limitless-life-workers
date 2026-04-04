@@ -1,0 +1,23 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/npm_typed/react_dom_server"
+
+import(
+  "mizchi/js/web/streams"
+  "mizchi/npm_typed/react"
+)
+
+// Values
+#alias(render_to_readable_stream)
+pub async fn renderToReadableStream(@react.Element) -> @streams.ReadableStream
+
+#alias(render_to_string)
+pub fn renderToString(@react.Element) -> String
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

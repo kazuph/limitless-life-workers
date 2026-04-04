@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foo - View Transition Demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <nav>
+    <a href="index.html" data-sol-direction="backwards">Home</a>
+    <a href="foo.html" class="active">Foo</a>
+    <a href="bar.html" data-sol-prefetch>Bar</a>
+    <a href="sub/deep.html" data-sol-prefetch>Deep (sub/)</a>
+  </nav>
+
+  <main>
+    <h1 class="page-title">Foo Page</h1>
+    <div class="card">
+      <div class="card-image" style="background-color: #e74c3c;"></div>
+      <p>This is the Foo page.</p>
+      <p>The card and title have view-transition-name, so they animate smoothly.</p>
+    </div>
+
+    <div class="content-section">
+      <h2>Foo Features</h2>
+      <ul>
+        <li>Cross-document view transitions</li>
+        <li>No JavaScript API call needed for MPA</li>
+        <li>CSS @view-transition rule enables it</li>
+      </ul>
+    </div>
+
+    <div class="feature-grid">
+      <a href="index.html" class="feature-item">
+        <div class="feature-icon" style="background-color: #3498db;">H</div>
+        <span>Back to Home</span>
+      </a>
+      <a href="bar.html" class="feature-item">
+        <div class="feature-icon" style="background-color: #2ecc71;">B</div>
+        <span>Go to Bar</span>
+      </a>
+    </div>
+  </main>
+</body>
+</html>

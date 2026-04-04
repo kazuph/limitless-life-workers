@@ -1,0 +1,26 @@
+{
+  "name": "mizchi/luna",
+  "version": "0.4.1",
+  "deps": {
+    "moonbitlang/async": "0.15.0",
+    "moonbitlang/x": "0.4.38",
+    "mizchi/npm_typed": "0.1.6",
+    "moonbitlang/parser": "0.1.12",
+    "mizchi/markdown": "0.3.3",
+    "mizchi/js": "0.10.7",
+    "mizchi/jsonschema": "0.6.0",
+    "mizchi/process_pool": "0.1.1"
+  },
+  "readme": "README.md",
+  "repository": "https://github.com/mizchi/luna",
+  "license": "MIT",
+  "keywords": [
+    "luna",
+    "ui",
+    "signals"
+  ],
+  "description": "Fine-grained reactive UI library for Moonbit/JS",
+  "source": "src",
+  "warn-list": "-6-unused_trait_bound",
+  "preferred-target": "js"
+}

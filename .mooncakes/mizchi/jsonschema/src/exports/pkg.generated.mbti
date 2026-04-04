@@ -1,0 +1,47 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/jsonschema/exports"
+
+import(
+  "mizchi/jsonschema/types"
+  "mizchi/jsonschema/validate"
+)
+
+// Values
+pub fn any_of_schema(Array[@types.JsonSchema]) -> @types.JsonSchema
+
+pub fn any_schema() -> @types.JsonSchema
+
+pub fn array_schema(items? : @types.JsonSchema?, min_items? : Int?, max_items? : Int?) -> @types.JsonSchema
+
+pub fn boolean_schema() -> @types.JsonSchema
+
+pub fn build_validator(Json) -> @validate.Validator raise @validate.ParseError
+
+pub fn const_schema(Json) -> @types.JsonSchema
+
+pub fn from_schema(@types.JsonSchema) -> @validate.Validator
+
+pub fn integer_schema(minimum? : Int?, maximum? : Int?, exclusive_minimum? : Int?, exclusive_maximum? : Int?, multiple_of? : Int?) -> @types.JsonSchema
+
+pub fn null_schema() -> @types.JsonSchema
+
+pub fn number_schema(minimum? : Double?, maximum? : Double?, exclusive_minimum? : Double?, exclusive_maximum? : Double?, multiple_of? : Double?) -> @types.JsonSchema
+
+pub fn object_schema(properties? : Map[String, @types.JsonSchema]?, required? : Array[String]?, additional_properties? : @types.JsonSchema?) -> @types.JsonSchema
+
+pub fn one_of_schema(Array[@types.JsonSchema]) -> @types.JsonSchema
+
+pub fn string_schema(min_length? : Int?, max_length? : Int?, enum_? : Array[String]?) -> @types.JsonSchema
+
+pub fn validate(Json, Json) -> Result[Unit, Array[@validate.ValidationError]]
+
+pub fn validate_schema(@types.JsonSchema, Json) -> Result[Unit, Array[@validate.ValidationError]]
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSS Strategy Comparison</title>
+
+  <!-- link-preload戦略: <head>でpreload -->
+  <link rel="preload" href="shared.css" as="style">
+
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1, h2 { color: #333; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .strategy-box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .strategy-box h3 {
+      margin-top: 0;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #eee;
+    }
+    .pros { color: #27ae60; }
+    .cons { color: #e74c3c; }
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    th { background: #2c3e50; color: white; }
+    .check { color: #27ae60; }
+    .cross { color: #e74c3c; }
+    .partial { color: #f39c12; }
+  </style>
+</head>
+<body>
+  <h1>CSS配信戦略の比較</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th>戦略</th>
+        <th>HTTPリクエスト</th>
+        <th>ブロッキング</th>
+        <th>重複</th>
+        <th>外部配信</th>
+        <th>メモリ効率</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>inline</strong></td>
+        <td class="check">0</td>
+        <td class="check">なし</td>
+        <td class="cross">あり</td>
+        <td class="check">最適</td>
+        <td class="cross">低</td>
+      </tr>
+      <tr>
+        <td><strong>link</strong></td>
+        <td class="partial">1 (キャッシュ)</td>
+        <td class="cross">あり</td>
+        <td class="check">なし</td>
+        <td class="partial">要設定</td>
+        <td class="partial">中</td>
+      </tr>
+      <tr>
+        <td><strong>link-preload</strong></td>
+        <td class="partial">1 (並列)</td>
+        <td class="partial">軽減</td>
+        <td class="check">なし</td>
+        <td class="cross">不可</td>
+        <td class="partial">中</td>
+      </tr>
+      <tr>
+        <td><strong>adoptable</strong></td>
+        <td class="check">0</td>
+        <td class="partial">Hydration時</td>
+        <td class="check">なし</td>
+        <td class="partial">JS必須</td>
+        <td class="check">高</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>各戦略のデモ</h2>
+
+  <div class="grid">
+    <!-- 1. Inline Strategy -->
+    <div class="strategy-box">
+      <h3>1. inline</h3>
+      <p class="pros">✓ 自己完結、外部配信向き</p>
+      <p class="cons">✗ CSSが重複</p>
+
+      <css-demo-inline data-state='{"count":1}'>
+        <template shadowrootmode="open">
+          <style>
+            :host { display: block; padding: 12px; border: 2px solid #3498db; border-radius: 6px; margin: 8px 0; }
+            .value { font-size: 1.5rem; font-weight: bold; }
+            button { margin: 4px; padding: 4px 12px; }
+          </style>
+          <div class="value">Count: 1</div>
+          <button data-action="dec">-</button>
+          <button data-action="inc">+</button>
+        </template>
+      </css-demo-inline>
+
+      <css-demo-inline data-state='{"count":2}'>
+        <template shadowrootmode="open">
+          <style>
+            :host { display: block; padding: 12px; border: 2px solid #3498db; border-radius: 6px; margin: 8px 0; }
+            .value { font-size: 1.5rem; font-weight: bold; }
+            button { margin: 4px; padding: 4px 12px; }
+          </style>
+          <div class="value">Count: 2</div>
+          <button data-action="dec">-</button>
+          <button data-action="inc">+</button>
+        </template>
+      </css-demo-inline>
+
+      <pre>&lt;style&gt;...&lt;/style&gt; x 2回</pre>
+    </div>
+
+    <!-- 2. Link Strategy -->
+    <div class="strategy-box">
+      <h3>2. link</h3>
+      <p class="pros">✓ ブラウザキャッシュ</p>
+      <p class="cons">✗ レンダリングブロッキング</p>
+
+      <css-demo-link data-state='{"count":3}'>
+        <template shadowrootmode="open">
+          <link rel="stylesheet" href="demo-component.css">
+          <div class="value">Count: 3</div>
+          <button data-action="dec">-</button>
+          <button data-action="inc">+</button>
+        </template>
+      </css-demo-link>
+
+      <css-demo-link data-state='{"count":4}'>
+        <template shadowrootmode="open">
+          <link rel="stylesheet" href="demo-component.css">
+          <div class="value">Count: 4</div>
+          <button data-action="dec">-</button>
+          <button data-action="inc">+</button>
+        </template>
+      </css-demo-link>
+
+      <pre>&lt;link href="..."&gt; x 2回
+HTTP Request: 1回 (キャッシュ)</pre>
+    </div>
+
+    <!-- 3. Link-Preload Strategy -->
+    <div class="strategy-box">
+      <h3>3. link-preload</h3>
+      <p class="pros">✓ 並列ロード</p>
+      <p class="cons">✗ 親ページのコントロール必要</p>
+
+      <css-demo-preload data-state='{"count":5}'>
+        <template shadowrootmode="open">
+          <link rel="stylesheet" href="shared.css">
+          <link rel="stylesheet" href="demo-component.css">
+          <div class="value">Count: 5</div>
+          <button class="btn btn-danger" data-action="dec">-</button>
+          <button class="btn btn-primary" data-action="inc">+</button>
+        </template>
+      </css-demo-preload>
+
+      <pre>&lt;head&gt;
+  &lt;link rel="preload" href="..." as="style"&gt;
+&lt;/head&gt;
+...
+&lt;template&gt;
+  &lt;link rel="stylesheet" href="..."&gt;
+&lt;/template&gt;</pre>
+    </div>
+
+    <!-- 4. Adoptable Strategy -->
+    <div class="strategy-box">
+      <h3>4. adoptable</h3>
+      <p class="pros">✓ メモリ効率最高</p>
+      <p class="cons">✗ Hydration必須、FOUC可能性</p>
+
+      <css-demo-adoptable data-state='{"count":6}'>
+        <template shadowrootmode="open">
+          <!-- SSR時は最小限のスタイル -->
+          <style>:host{display:block;padding:12px;border:2px dashed #999;}</style>
+          <div class="value">Count: 6</div>
+          <button data-action="dec">-</button>
+          <button data-action="inc">+</button>
+        </template>
+      </css-demo-adoptable>
+
+      <css-demo-adoptable data-state='{"count":7}'>
+        <template shadowrootmode="open">
+          <style>:host{display:block;padding:12px;border:2px dashed #999;}</style>
+          <div class="value">Count: 7</div>
+          <button data-action="dec">-</button>
+          <button data-action="inc">+</button>
+        </template>
+      </css-demo-adoptable>
+
+      <pre>CSSStyleSheet オブジェクト: 1個
+採用したShadow DOM: 2個</pre>
+    </div>
+  </div>
+
+  <h2>推奨フロー</h2>
+  <pre>
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ユースケース判定フロー                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ 開始
+   │
+   ▼
+ 外部サイトに埋め込む？ ──Yes──► inline (自己完結が重要)
+   │
+   No
+   │
+   ▼
+ 親ページをコントロールできる？ ──No──► link (キャッシュ効く)
+   │
+   Yes
+   │
+   ▼
+ 大量のコンポーネントを使う？ ──Yes──► adoptable (メモリ効率重視)
+   │
+   No
+   │
+   ▼
+ link-preload (バランス型)
+  </pre>
+
+  <h2>ロード状況</h2>
+  <pre id="load-status">計測中...</pre>
+
+  <!-- 外部CSS (link/link-preload用) -->
+  <script>
+    // ========================================
+    // 共通のコンポーネントロジック
+    // ========================================
+    function createComponent(name, applyAdoptable = false) {
+      return class extends HTMLElement {
+        constructor() {
+          super();
+          this._isSSR = !!this.shadowRoot;
+          this.state = JSON.parse(this.dataset.state || '{"count":0}');
+        }
+
+        connectedCallback() {
+          if (applyAdoptable) {
+            // Adoptable Stylesheets を適用
+            if (!window._sharedSheet) {
+              window._sharedSheet = new CSSStyleSheet();
+              window._sharedSheet.replaceSync(`
+                :host { display: block; padding: 12px; border: 2px solid #9b59b6; border-radius: 6px; margin: 8px 0; background: #f8f4fc; }
+                .value { font-size: 1.5rem; font-weight: bold; color: #8e44ad; }
+                button { margin: 4px; padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; }
+                button[data-action="inc"] { background: #27ae60; color: white; }
+                button[data-action="dec"] { background: #e74c3c; color: white; }
+              `);
+            }
+            this.shadowRoot.adoptedStyleSheets = [window._sharedSheet];
+          }
+
+          this.hydrate();
+        }
+
+        hydrate() {
+          this.shadowRoot.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+              if (btn.dataset.action === 'inc') this.state.count++;
+              if (btn.dataset.action === 'dec') this.state.count--;
+              this.updateDisplay();
+            });
+          });
+        }
+
+        updateDisplay() {
+          const el = this.shadowRoot.querySelector('.value');
+          if (el) el.textContent = `Count: ${this.state.count}`;
+        }
+      };
+    }
+
+    // 各戦略のコンポーネントを登録
+    customElements.define('css-demo-inline', createComponent('inline'));
+    customElements.define('css-demo-link', createComponent('link'));
+    customElements.define('css-demo-preload', createComponent('preload'));
+    customElements.define('css-demo-adoptable', createComponent('adoptable', true));
+
+    // ========================================
+    // ロード状況表示
+    // ========================================
+    setTimeout(() => {
+      const status = [];
+
+      // Performance API でリソースを確認
+      const resources = performance.getEntriesByType('resource');
+      const cssResources = resources.filter(r => r.name.endsWith('.css'));
+
+      status.push('=== CSSリソースのロード状況 ===');
+      cssResources.forEach(r => {
+        status.push(`${r.name.split('/').pop()}`);
+        status.push(`  duration: ${r.duration.toFixed(2)}ms`);
+        status.push(`  transferSize: ${r.transferSize} bytes`);
+      });
+
+      if (cssResources.length === 0) {
+        status.push('(外部CSSなし - inlineまたはadoptable)');
+      }
+
+      status.push('');
+      status.push('=== Adoptable Stylesheets ===');
+      status.push(`共有CSSStyleSheet: ${window._sharedSheet ? '作成済み' : '未作成'}`);
+
+      const adoptableComponents = document.querySelectorAll('css-demo-adoptable');
+      let adoptedCount = 0;
+      adoptableComponents.forEach(c => {
+        if (c.shadowRoot?.adoptedStyleSheets?.length > 0) adoptedCount++;
+      });
+      status.push(`採用したコンポーネント数: ${adoptedCount}`);
+
+      document.getElementById('load-status').textContent = status.join('\n');
+    }, 500);
+  </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "name": "@luna_ui/luna-loader",
+  "version": "0.3.1",
+  "description": "Island loader for Luna SSR hydration",
+  "type": "module",
+  "main": "./dist/loader.js",
+  "exports": {
+    ".": "./dist/loader.js",
+    "./boot": "./dist/boot/index.js",
+    "./boot/loader": "./dist/boot/loader.js",
+    "./boot/router": "./dist/boot/router.js",
+    "./router": "./dist/router/index.js",
+    "./router/hybrid": "./dist/router/hybrid.js",
+    "./router/spa": "./dist/router/spa.js",
+    "./router/scroll": "./dist/router/scroll.js",
+    "./wc": "./dist/wc-loader.js",
+    "./sol-nav": "./dist/sol-nav.js",
+    "./lib": "./dist/lib.js",
+    "./hydration": "./dist/hydration.js",
+    "./src/loader": "./src/loader.ts",
+    "./src/boot": "./src/boot/index.ts",
+    "./src/boot/loader": "./src/boot/loader.ts",
+    "./src/boot/router": "./src/boot/router.ts",
+    "./src/router": "./src/router/index.ts",
+    "./src/router/hybrid": "./src/router/hybrid.ts",
+    "./src/router/spa": "./src/router/spa.ts",
+    "./src/router/scroll": "./src/router/scroll.ts",
+    "./src/wc-loader": "./src/wc-loader.ts",
+    "./src/sol-nav": "./src/sol-nav.ts",
+    "./src/lib": "./src/lib.ts",
+    "./src/hydration": "./src/hydration.ts"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {},
+  "keywords": [
+    "luna",
+    "moonbit",
+    "island",
+    "ssr",
+    "hydration",
+    "web-components"
+  ],
+  "author": "mizchi",
+  "license": "MIT"
+}

@@ -1,0 +1,12 @@
+{
+  "is-main": true,
+  "import": [
+    "mizchi/jsonschema",
+    "moonbitlang/x/sys",
+    "moonbitlang/async",
+    "moonbitlang/async/io",
+    "moonbitlang/async/fs",
+    "moonbitlang/async/pipe",
+    "moonbitlang/async/http"
+  ]
+}

@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/jsonschema/parser"
+
+import(
+  "mizchi/jsonschema/types"
+)
+
+// Values
+pub fn parse_schema(Json) -> @types.JsonSchema raise ParseError
+
+// Errors
+pub suberror ParseError {
+  InvalidSchema(String)
+}
+pub impl Show for ParseError
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

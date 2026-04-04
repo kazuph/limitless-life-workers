@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Components SSR Experiment</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 { color: #333; }
+    section {
+      margin: 20px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Web Components SSR Experiment</h1>
+  <p>Declarative Shadow DOM を使ったSSR実験</p>
+
+  <section>
+    <h2>1. Counter Component (状態付き)</h2>
+    <p>SSRされた初期値をhydrationで復元し、イベントを接続</p>
+
+    <!-- SSRされたカウンターコンポーネント -->
+    <wc-counter data-count="5">
+      <template shadowrootmode="open">
+        <style>
+          :host {
+            display: block;
+            padding: 16px;
+            border: 2px solid #4a90d9;
+            border-radius: 8px;
+            background: #f0f7ff;
+          }
+          .counter-display {
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+          }
+          .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+          }
+          button {
+            padding: 8px 20px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+          }
+          button:hover { opacity: 0.8; }
+          .decrement { background: #ff6b6b; color: white; }
+          .increment { background: #51cf66; color: white; }
+        </style>
+        <div class="counter-display">Count: <span id="value">5</span></div>
+        <div class="buttons">
+          <button class="decrement">-</button>
+          <button class="increment">+</button>
+        </div>
+      </template>
+    </wc-counter>
+  </section>
+
+  <section>
+    <h2>2. Card Component (Slot使用)</h2>
+    <p>Light DOMのコンテンツをSlotで投影</p>
+
+    <!-- SSRされたカードコンポーネント -->
+    <wc-card>
+      <template shadowrootmode="open">
+        <style>
+          :host {
+            display: block;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          }
+          .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px;
+          }
+          .body {
+            padding: 16px;
+            background: white;
+          }
+          ::slotted(h3) {
+            margin: 0;
+            font-size: 1.2rem;
+          }
+          ::slotted(p) {
+            margin: 8px 0 0 0;
+            color: #666;
+          }
+        </style>
+        <div class="header">
+          <slot name="title"></slot>
+        </div>
+        <div class="body">
+          <slot></slot>
+        </div>
+      </template>
+      <!-- Light DOM content -->
+      <h3 slot="title">SSRされたカード</h3>
+      <p>このコンテンツはLight DOMにあり、Slotで投影されています。</p>
+      <p>SEOに有利で、JSなしでもコンテンツが表示されます。</p>
+    </wc-card>
+  </section>
+
+  <section>
+    <h2>3. Toggle Component (boolean状態)</h2>
+    <p>ON/OFF状態をSSRで保持</p>
+
+    <!-- SSRされたトグルコンポーネント (ON状態) -->
+    <wc-toggle data-active="true">
+      <template shadowrootmode="open">
+        <style>
+          :host {
+            display: inline-block;
+          }
+          .toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+          }
+          .switch {
+            width: 50px;
+            height: 26px;
+            background: #ccc;
+            border-radius: 13px;
+            position: relative;
+            transition: background 0.3s;
+          }
+          .switch.active {
+            background: #4caf50;
+          }
+          .switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+          }
+          .switch.active::after {
+            transform: translateX(24px);
+          }
+          .label {
+            font-weight: 500;
+          }
+        </style>
+        <div class="toggle">
+          <div class="switch active"></div>
+          <span class="label">通知: ON</span>
+        </div>
+      </template>
+    </wc-toggle>
+  </section>
+
+  <section>
+    <h2>4. List Component (配列データ)</h2>
+    <p>配列データをSSRでレンダリング</p>
+
+    <!-- SSRされたリストコンポーネント -->
+    <wc-list data-items='["Apple","Banana","Cherry","Date"]'>
+      <template shadowrootmode="open">
+        <style>
+          :host {
+            display: block;
+          }
+          ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+          }
+          li {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          li:last-child {
+            border-bottom: none;
+          }
+          li:hover {
+            background: #f9f9f9;
+          }
+          .delete-btn {
+            background: #ff5252;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+          }
+          .add-form {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            background: #f5f5f5;
+          }
+          input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+          }
+          .add-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+          }
+        </style>
+        <div class="add-form">
+          <input type="text" placeholder="新しいアイテム..." />
+          <button class="add-btn">追加</button>
+        </div>
+        <ul>
+          <li><span>Apple</span><button class="delete-btn">削除</button></li>
+          <li><span>Banana</span><button class="delete-btn">削除</button></li>
+          <li><span>Cherry</span><button class="delete-btn">削除</button></li>
+          <li><span>Date</span><button class="delete-btn">削除</button></li>
+        </ul>
+      </template>
+    </wc-list>
+  </section>
+
+  <section>
+    <h2>Hydration状態</h2>
+    <pre id="status">Hydration前: JavaScriptが読み込まれていません</pre>
+  </section>
+
+  <script>
+    // ========================================
+    // Web Components の定義とHydration
+    // ========================================
+
+    // 1. Counter Component
+    class WcCounter extends HTMLElement {
+      constructor() {
+        super();
+        // Declarative Shadow DOMが既に存在するかチェック
+        if (!this.shadowRoot) {
+          // フォールバック: JSのみの場合
+          this.attachShadow({ mode: 'open' });
+        }
+        // data属性から初期状態を復元
+        this.count = parseInt(this.dataset.count || '0', 10);
+      }
+
+      connectedCallback() {
+        this.hydrate();
+      }
+
+      hydrate() {
+        const valueEl = this.shadowRoot.querySelector('#value');
+        const decrementBtn = this.shadowRoot.querySelector('.decrement');
+        const incrementBtn = this.shadowRoot.querySelector('.increment');
+
+        // イベントリスナーを接続
+        decrementBtn?.addEventListener('click', () => {
+          this.count--;
+          this.updateDisplay();
+        });
+
+        incrementBtn?.addEventListener('click', () => {
+          this.count++;
+          this.updateDisplay();
+        });
+
+        console.log('[wc-counter] Hydrated with count:', this.count);
+      }
+
+      updateDisplay() {
+        const valueEl = this.shadowRoot.querySelector('#value');
+        if (valueEl) {
+          valueEl.textContent = this.count;
+        }
+        // data属性も更新（状態の永続化用）
+        this.dataset.count = this.count;
+      }
+    }
+    customElements.define('wc-counter', WcCounter);
+
+    // 2. Card Component
+    class WcCard extends HTMLElement {
+      constructor() {
+        super();
+        if (!this.shadowRoot) {
+          this.attachShadow({ mode: 'open' });
+        }
+      }
+
+      connectedCallback() {
+        console.log('[wc-card] Hydrated - Slots are working');
+      }
+    }
+    customElements.define('wc-card', WcCard);
+
+    // 3. Toggle Component
+    class WcToggle extends HTMLElement {
+      constructor() {
+        super();
+        if (!this.shadowRoot) {
+          this.attachShadow({ mode: 'open' });
+        }
+        this.active = this.dataset.active === 'true';
+      }
+
+      connectedCallback() {
+        this.hydrate();
+      }
+
+      hydrate() {
+        const toggle = this.shadowRoot.querySelector('.toggle');
+
+        toggle?.addEventListener('click', () => {
+          this.active = !this.active;
+          this.updateDisplay();
+        });
+
+        console.log('[wc-toggle] Hydrated with active:', this.active);
+      }
+
+      updateDisplay() {
+        const switchEl = this.shadowRoot.querySelector('.switch');
+        const labelEl = this.shadowRoot.querySelector('.label');
+
+        if (switchEl) {
+          switchEl.classList.toggle('active', this.active);
+        }
+        if (labelEl) {
+          labelEl.textContent = `通知: ${this.active ? 'ON' : 'OFF'}`;
+        }
+        this.dataset.active = this.active;
+      }
+    }
+    customElements.define('wc-toggle', WcToggle);
+
+    // 4. List Component
+    class WcList extends HTMLElement {
+      constructor() {
+        super();
+        if (!this.shadowRoot) {
+          this.attachShadow({ mode: 'open' });
+        }
+        try {
+          this.items = JSON.parse(this.dataset.items || '[]');
+        } catch {
+          this.items = [];
+        }
+      }
+
+      connectedCallback() {
+        this.hydrate();
+      }
+
+      hydrate() {
+        const input = this.shadowRoot.querySelector('input');
+        const addBtn = this.shadowRoot.querySelector('.add-btn');
+
+        // 追加ボタン
+        addBtn?.addEventListener('click', () => {
+          if (input && input.value.trim()) {
+            this.items.push(input.value.trim());
+            input.value = '';
+            this.render();
+          }
+        });
+
+        // Enterキーでも追加
+        input?.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter' && input.value.trim()) {
+            this.items.push(input.value.trim());
+            input.value = '';
+            this.render();
+          }
+        });
+
+        // 既存の削除ボタンにイベントを接続
+        this.attachDeleteHandlers();
+
+        console.log('[wc-list] Hydrated with items:', this.items);
+      }
+
+      attachDeleteHandlers() {
+        const deleteButtons = this.shadowRoot.querySelectorAll('.delete-btn');
+        deleteButtons.forEach((btn, index) => {
+          btn.addEventListener('click', () => {
+            this.items.splice(index, 1);
+            this.render();
+          });
+        });
+      }
+
+      render() {
+        const ul = this.shadowRoot.querySelector('ul');
+        if (ul) {
+          ul.innerHTML = this.items.map(item =>
+            `<li><span>${this.escapeHtml(item)}</span><button class="delete-btn">削除</button></li>`
+          ).join('');
+          this.attachDeleteHandlers();
+        }
+        // data属性を更新
+        this.dataset.items = JSON.stringify(this.items);
+      }
+
+      escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    }
+    customElements.define('wc-list', WcList);
+
+    // ========================================
+    // Hydration完了の表示
+    // ========================================
+    document.getElementById('status').textContent =
+      `Hydration完了: ${new Date().toLocaleTimeString()}
+
+各コンポーネントの状態:
+- wc-counter: shadowRoot ${document.querySelector('wc-counter').shadowRoot ? '✓' : '✗'}
+- wc-card: shadowRoot ${document.querySelector('wc-card').shadowRoot ? '✓' : '✗'}
+- wc-toggle: shadowRoot ${document.querySelector('wc-toggle').shadowRoot ? '✓' : '✗'}
+- wc-list: shadowRoot ${document.querySelector('wc-list').shadowRoot ? '✓' : '✗'}`;
+
+    console.log('=== Web Components SSR Experiment ===');
+    console.log('Declarative Shadow DOM を使ったSSRのデモです。');
+    console.log('HTML内の<template shadowrootmode="open">がブラウザによって自動的にShadow DOMとして解釈されます。');
+  </script>
+</body>
+</html>

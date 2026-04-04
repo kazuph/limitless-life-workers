@@ -1,0 +1,42 @@
+/**
+ * demo-component.css
+ * link戦略でロードされる外部CSS
+ */
+
+:host {
+  display: block;
+  padding: 12px;
+  border: 2px solid #2ecc71;
+  border-radius: 6px;
+  margin: 8px 0;
+  background: #f0fff4;
+}
+
+.value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #27ae60;
+}
+
+button {
+  margin: 4px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+button[data-action="inc"] {
+  background: #27ae60;
+  color: white;
+}
+
+button[data-action="dec"] {
+  background: #e74c3c;
+  color: white;
+}

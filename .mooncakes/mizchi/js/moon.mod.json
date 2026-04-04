@@ -1,0 +1,21 @@
+{
+  "name": "mizchi/js",
+  "version": "0.10.7",
+  "deps": {
+    "moonbitlang/async": "0.15.0",
+    "tonyfettes/any": "0.1.5"
+  },
+  "readme": "README.md",
+  "repository": "https://github.com/mizchi/js.mbt",
+  "license": "MIT",
+  "keywords": [
+    "js",
+    "node",
+    "dom",
+    "deno",
+    "bun"
+  ],
+  "description": "js bindings for builtins/node/browser/deno/bun",
+  "source": "src",
+  "preferred-target": "js"
+}

@@ -1,0 +1,57 @@
+{
+  "name": "@luna_ui/wcssr",
+  "version": "0.3.1",
+  "description": "Web Components SSR runtime with functional API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server-entry.d.ts",
+      "import": "./dist/server-entry.js"
+    },
+    "./client": {
+      "types": "./dist/client-entry.d.ts",
+      "import": "./dist/client-entry.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:browser:ui": "vitest --config vitest.browser.config.ts --ui",
+    "test:browser:chromium": "BROWSER=chromium vitest run --config vitest.browser.config.ts",
+    "test:browser:firefox": "BROWSER=firefox vitest run --config vitest.browser.config.ts",
+    "test:browser:webkit": "BROWSER=webkit vitest run --config vitest.browser.config.ts",
+    "test:browser:all": "pnpm test:browser:chromium && pnpm test:browser:firefox && pnpm test:browser:webkit",
+    "bench": "vitest bench --run --config vitest.bench.config.ts",
+    "bench:watch": "vitest bench --config vitest.bench.config.ts"
+  },
+  "keywords": [
+    "web-components",
+    "ssr",
+    "declarative-shadow-dom",
+    "hydration"
+  ],
+  "author": "mizchi",
+  "license": "MIT",
+  "devDependencies": {
+    "@vitest/browser": "^4.0.15",
+    "@vitest/browser-playwright": "^4.0.15",
+    "playwright": "^1.57.0",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.15"
+  }
+}

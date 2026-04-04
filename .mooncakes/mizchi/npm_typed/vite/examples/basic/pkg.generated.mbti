@@ -1,0 +1,16 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/npm_typed/vite/examples/basic"
+
+// Values
+pub fn config_example() -> Unit
+
+pub fn plugin_example() -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

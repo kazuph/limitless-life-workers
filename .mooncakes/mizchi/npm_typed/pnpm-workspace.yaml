@@ -1,0 +1,10 @@
+onlyBuiltDependencies:
+  - canvas
+  - esbuild
+  - msw
+  - puppeteer
+  - sharp
+  - workerd
+packages:
+  - '*'
+  - 'react/examples/*'

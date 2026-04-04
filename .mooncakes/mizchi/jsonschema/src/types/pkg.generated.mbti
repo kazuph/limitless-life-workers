@@ -1,0 +1,174 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "mizchi/jsonschema/types"
+
+// Values
+
+// Errors
+
+// Types and methods
+pub(all) struct AllOfSchema {
+  schemas : Array[JsonSchema]
+}
+pub impl Eq for AllOfSchema
+
+pub(all) struct AnyOfSchema {
+  schemas : Array[JsonSchema]
+}
+pub impl Eq for AnyOfSchema
+
+pub(all) struct AnySchema {
+}
+pub impl Eq for AnySchema
+
+pub(all) struct ArraySchema {
+  items : JsonSchema?
+  prefix_items : Array[JsonSchema]?
+  contains : JsonSchema?
+  min_contains : Int?
+  max_contains : Int?
+  min_items : Int?
+  max_items : Int?
+  strict_type : Bool?
+}
+pub impl Eq for ArraySchema
+pub impl ToJson for ArraySchema
+
+pub(all) struct BooleanSchema {
+}
+pub impl Eq for BooleanSchema
+
+pub struct Builder {
+  // private fields
+}
+pub fn Builder::all_of(Self, Array[JsonSchema]) -> JsonSchema
+pub fn Builder::any(Self) -> JsonSchema
+pub fn Builder::any_of(Self, Array[JsonSchema]) -> JsonSchema
+pub fn Builder::array(Self, items? : JsonSchema, prefix_items? : Array[JsonSchema], contains? : JsonSchema, min_contains? : Int, max_contains? : Int, min_items? : Int, max_items? : Int) -> JsonSchema
+pub fn Builder::boolean(Self) -> JsonSchema
+pub fn Builder::const_(Self, Json) -> JsonSchema
+pub fn Builder::define_schema(Self, JsonPointer, JsonSchema) -> RefSchema
+pub fn Builder::emit_json_schema(Self) -> Json
+pub fn Builder::enum_(Self, Array[Json]) -> JsonSchema
+pub fn Builder::enumerable_one_of(Self, String, Array[JsonSchema], params~ : JsonSchema?) -> JsonSchema
+pub fn Builder::integer(Self, minimum? : Int, maximum? : Int, exclusive_minimum? : Int, exclusive_maximum? : Int, multiple_of? : Int) -> JsonSchema
+pub fn Builder::new() -> Self
+pub fn Builder::null(Self) -> JsonSchema
+pub fn Builder::number(Self, minimum? : Double, maximum? : Double, exclusive_minimum? : Double, exclusive_maximum? : Double, multiple_of? : Double) -> JsonSchema
+pub fn Builder::object(Self, properties? : Map[String, JsonSchema], required? : Array[String], additional_properties? : JsonSchema, required_all? : Bool) -> JsonSchema
+pub fn Builder::one_of(Self, Array[JsonSchema]) -> JsonSchema
+pub fn Builder::ref_(Self, JsonPointer) -> JsonSchema
+pub fn Builder::ref_from_string(Self, String) -> JsonSchema
+pub fn Builder::string(Self, minLength? : Int, maxLength? : Int, enum_? : Array[String]) -> JsonSchema
+
+pub(all) struct ConstSchema {
+  value : Json
+}
+pub impl Eq for ConstSchema
+
+pub(all) struct EnumSchema {
+  values : Array[Json]
+}
+pub impl Eq for EnumSchema
+
+pub(all) struct Enumerable {
+  tag : String
+  positionals : Array[JsonSchema]?
+  params : Map[String, JsonSchema]?
+}
+pub fn Enumerable::new(String, Array[JsonSchema]?, Map[String, JsonSchema]?) -> Self
+pub fn Enumerable::parse_enumerable(OneOfSchema) -> Array[Self]?
+pub impl Eq for Enumerable
+
+pub(all) struct IntegerSchema {
+  minimum : Int?
+  maximum : Int?
+  exclusive_minimum : Int?
+  exclusive_maximum : Int?
+  multiple_of : Int?
+  strict_type : Bool?
+}
+pub impl Eq for IntegerSchema
+pub impl ToJson for IntegerSchema
+
+pub(all) enum JsonPointer {
+  Root
+  Key(JsonPointer, key~ : String)
+  Index(JsonPointer, index~ : Int)
+}
+pub fn JsonPointer::access(Self, Json) -> Json?
+pub fn JsonPointer::from_string(String) -> Result[Self, String]
+pub fn JsonPointer::index(Self, Int) -> Self
+pub fn JsonPointer::key(Self, String) -> Self
+pub impl Eq for JsonPointer
+pub impl Hash for JsonPointer
+pub impl Show for JsonPointer
+
+pub(all) enum JsonSchema {
+  Any(AnySchema)
+  Null(NullSchema)
+  Boolean(BooleanSchema)
+  String(StringSchema)
+  Number(NumberSchema)
+  Integer(IntegerSchema)
+  Array(ArraySchema)
+  Object(ObjectSchema)
+  AnyOf(AnyOfSchema)
+  AllOf(AllOfSchema)
+  OneOf(OneOfSchema)
+  Ref(RefSchema)
+  Enum(EnumSchema)
+  Const(ConstSchema)
+}
+pub impl Eq for JsonSchema
+pub impl ToJson for JsonSchema
+
+pub(all) struct NullSchema {
+}
+pub impl Eq for NullSchema
+
+pub(all) struct NumberSchema {
+  minimum : Double?
+  maximum : Double?
+  exclusive_minimum : Double?
+  exclusive_maximum : Double?
+  multiple_of : Double?
+  strict_type : Bool?
+}
+pub impl Eq for NumberSchema
+pub impl ToJson for NumberSchema
+
+pub(all) struct ObjectSchema {
+  properties : Map[String, JsonSchema]?
+  required : Array[String]?
+  additional_properties : JsonSchema?
+  strict_type : Bool?
+}
+pub impl Eq for ObjectSchema
+pub impl ToJson for ObjectSchema
+
+pub(all) struct OneOfSchema {
+  schemas : Array[JsonSchema]
+  parsed_nullable : JsonSchema?
+  parsed_enumerable : Array[Enumerable]?
+}
+pub fn OneOfSchema::parse_nullable(Self) -> JsonSchema?
+pub impl Eq for OneOfSchema
+
+pub(all) struct RefSchema {
+  pointer : JsonPointer
+}
+pub impl Eq for RefSchema
+
+pub(all) struct StringSchema {
+  min_length : Int?
+  max_length : Int?
+  enum_ : Array[String]?
+  strict_type : Bool?
+}
+pub impl Eq for StringSchema
+pub impl ToJson for StringSchema
+
+// Type aliases
+
+// Traits
+

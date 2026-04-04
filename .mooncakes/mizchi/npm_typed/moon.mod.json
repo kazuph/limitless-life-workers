@@ -1,0 +1,20 @@
+{
+  "name": "mizchi/npm_typed",
+  "version": "0.1.6",
+  "deps": {
+    "moonbitlang/async": "0.15.0",
+    "mizchi/js": "0.10.7"
+  },
+  "readme": "README.md",
+  "repository": "https://github.com/mizchi/npm_typed.mbt",
+  "license": "MIT",
+  "keywords": [
+    "js",
+    "npm",
+    "react",
+    "ai",
+    "ffi"
+  ],
+  "description": "Typed npm library bindings(40+) for js backend",
+  "preferred-target": "js"
+}

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Page - View Transition Demo</title>
+  <link rel="stylesheet" href="../styles.css">
+  <script src="../main.js" defer></script>
+</head>
+<body>
+  <nav>
+    <a href="../index.html" data-sol-direction="backwards">Home</a>
+    <a href="../foo.html" data-sol-direction="backwards">Foo</a>
+    <a href="../bar.html" data-sol-direction="backwards">Bar</a>
+    <a href="deep.html" class="active">Deep (sub/)</a>
+  </nav>
+
+  <main>
+    <h1 class="page-title">Deep Page (sub/)</h1>
+    <div class="card">
+      <div class="card-image" style="background-color: #9b59b6;"></div>
+      <p>This page is in a subdirectory (depth: 1).</p>
+      <p>With <code>direction: "depth"</code> mode:</p>
+      <ul>
+        <li>index.html → sub/deep.html = <strong>forwards</strong> (depth 0→1)</li>
+        <li>sub/deep.html → index.html = <strong>backwards</strong> (depth 1→0)</li>
+      </ul>
+    </div>
+
+    <div class="content-section">
+      <h2>Testing Direction Modes</h2>
+      <p>Change <code>DIRECTION_MODE</code> in main.js to test:</p>
+      <ul>
+        <li><code>"depth"</code> - URL depth determines direction</li>
+        <li><code>"history"</code> - Browser back/forward only</li>
+        <li><code>"manual"</code> - Uses <code>data-sol-direction</code> attribute</li>
+        <li><code>"none"</code> - No direction (default crossfade)</li>
+      </ul>
+    </div>
+
+    <div class="feature-grid">
+      <a href="../index.html" class="feature-item" data-sol-direction="backwards">
+        <div class="feature-icon" style="background-color: #3498db;">H</div>
+        <span>Back to Home</span>
+      </a>
+      <a href="../bar.html" class="feature-item" data-sol-direction="backwards">
+        <div class="feature-icon" style="background-color: #2ecc71;">B</div>
+        <span>Back to Bar</span>
+      </a>
+    </div>
+  </main>
+</body>
+</html>

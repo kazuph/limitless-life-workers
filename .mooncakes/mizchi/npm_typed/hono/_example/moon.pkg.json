@@ -1,0 +1,12 @@
+{
+  "is-main": true,
+  "supported-targets": [
+    "js"
+  ],
+  "import": [
+    "mizchi/js",
+    "mizchi/js/core",
+    "mizchi/npm_typed/hono",
+    "moonbitlang/async"
+  ]
+}

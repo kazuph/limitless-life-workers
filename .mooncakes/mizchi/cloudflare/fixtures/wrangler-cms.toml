@@ -1,0 +1,14 @@
+name = "moonbit-cms"
+main = "cf-worker-cms.js"
+compatibility_date = "2024-12-01"
+
+# D1 Database binding (local)
+[[d1_databases]]
+binding = "CMS_DB"
+database_name = "cms-db"
+database_id = "local-cms-db"
+
+# R2 Bucket binding (local)
+[[r2_buckets]]
+binding = "CMS_R2"
+bucket_name = "cms-bucket"

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nested Web Components SSR</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 { color: #333; }
+    section {
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Nested Web Components SSR</h1>
+
+  <section>
+    <h2>1. 入れ子コンポーネント (3階層)</h2>
+    <p>app-root → app-sidebar + app-main → app-card</p>
+
+    <!-- 入れ子のSSR: 各コンポーネントが独自のDeclarative Shadow DOM -->
+    <app-root data-state='{"title":"My App"}'>
+      <template shadowrootmode="open">
+        <link rel="stylesheet" href="shared.css">
+        <style>
+          :host {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 16px;
+            min-height: 300px;
+          }
+        </style>
+        <app-sidebar data-state='{"items":["Home","About","Contact"],"active":0}'>
+          <template shadowrootmode="open">
+            <link rel="stylesheet" href="shared.css">
+            <style>
+              :host {
+                display: block;
+                background: #2c3e50;
+                border-radius: 8px;
+                padding: 16px;
+              }
+              nav { display: flex; flex-direction: column; gap: 8px; }
+              .nav-item {
+                padding: 12px 16px;
+                color: white;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background 0.2s;
+              }
+              .nav-item:hover { background: rgba(255,255,255,0.1); }
+              .nav-item.active { background: #3498db; }
+            </style>
+            <nav>
+              <div class="nav-item active" data-index="0">Home</div>
+              <div class="nav-item" data-index="1">About</div>
+              <div class="nav-item" data-index="2">Contact</div>
+            </nav>
+          </template>
+        </app-sidebar>
+        <app-main data-state='{"page":"home"}'>
+          <template shadowrootmode="open">
+            <link rel="stylesheet" href="shared.css">
+            <style>
+              :host { display: block; }
+              .container { padding: 16px; }
+              h2 { margin-top: 0; color: #2c3e50; }
+              .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+            </style>
+            <div class="container">
+              <h2>Home</h2>
+              <div class="cards">
+                <app-card data-state='{"id":1,"title":"Card 1","count":0}'>
+                  <template shadowrootmode="open">
+                    <link rel="stylesheet" href="shared.css">
+                    <style>
+                      :host {
+                        display: block;
+                        border: 1px solid #ddd;
+                        border-radius: 8px;
+                        padding: 16px;
+                        background: white;
+                      }
+                      h3 { margin: 0 0 12px 0; color: #333; }
+                      .count { font-size: 1.5rem; font-weight: bold; color: #3498db; }
+                      .actions { margin-top: 12px; display: flex; gap: 8px; }
+                      button {
+                        padding: 6px 12px;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                      }
+                      .btn-inc { background: #27ae60; color: white; }
+                      .btn-dec { background: #e74c3c; color: white; }
+                    </style>
+                    <h3>Card 1</h3>
+                    <div class="count">0</div>
+                    <div class="actions">
+                      <button class="btn-dec" data-action="dec">-</button>
+                      <button class="btn-inc" data-action="inc">+</button>
+                    </div>
+                  </template>
+                </app-card>
+                <app-card data-state='{"id":2,"title":"Card 2","count":5}'>
+                  <template shadowrootmode="open">
+                    <link rel="stylesheet" href="shared.css">
+                    <style>
+                      :host {
+                        display: block;
+                        border: 1px solid #ddd;
+                        border-radius: 8px;
+                        padding: 16px;
+                        background: white;
+                      }
+                      h3 { margin: 0 0 12px 0; color: #333; }
+                      .count { font-size: 1.5rem; font-weight: bold; color: #3498db; }
+                      .actions { margin-top: 12px; display: flex; gap: 8px; }
+                      button {
+                        padding: 6px 12px;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                      }
+                      .btn-inc { background: #27ae60; color: white; }
+                      .btn-dec { background: #e74c3c; color: white; }
+                    </style>
+                    <h3>Card 2</h3>
+                    <div class="count">5</div>
+                    <div class="actions">
+                      <button class="btn-dec" data-action="dec">-</button>
+                      <button class="btn-inc" data-action="inc">+</button>
+                    </div>
+                  </template>
+                </app-card>
+              </div>
+            </div>
+          </template>
+        </app-main>
+      </template>
+    </app-root>
+  </section>
+
+  <section>
+    <h2>2. CSS読み込み状況</h2>
+    <pre id="css-status">確認中...</pre>
+  </section>
+
+  <section>
+    <h2>3. Hydration順序</h2>
+    <pre id="hydration-log"></pre>
+  </section>
+
+  <section>
+    <h2>構造図</h2>
+    <pre>
+&lt;app-root&gt;                           ← Level 0
+  &lt;template shadowrootmode="open"&gt;
+    &lt;link rel="stylesheet" href="shared.css"&gt;  ← 共有CSS
+    &lt;app-sidebar&gt;                    ← Level 1
+      &lt;template shadowrootmode="open"&gt;
+        &lt;link rel="stylesheet" href="shared.css"&gt;
+        ...
+      &lt;/template&gt;
+    &lt;/app-sidebar&gt;
+    &lt;app-main&gt;                       ← Level 1
+      &lt;template shadowrootmode="open"&gt;
+        &lt;link rel="stylesheet" href="shared.css"&gt;
+        &lt;app-card&gt;                   ← Level 2
+          &lt;template shadowrootmode="open"&gt;
+            &lt;link rel="stylesheet" href="shared.css"&gt;
+          &lt;/template&gt;
+        &lt;/app-card&gt;
+      &lt;/template&gt;
+    &lt;/app-main&gt;
+  &lt;/template&gt;
+&lt;/app-root&gt;
+
+CSS読み込み:
+  shared.css は5回 &lt;link&gt; されるが、
+  ブラウザは1回だけHTTPリクエストを送信（キャッシュ）
+    </pre>
+  </section>
+
+  <script>
+    const hydrationLog = [];
+    function log(msg) {
+      const time = performance.now().toFixed(2);
+      hydrationLog.push(`[${time}ms] ${msg}`);
+      document.getElementById('hydration-log').textContent = hydrationLog.join('\n');
+    }
+
+    // ========================================
+    // 入れ子コンポーネント定義
+    // ========================================
+
+    // Level 2: Card
+    class AppCard extends HTMLElement {
+      constructor() {
+        super();
+        this._isSSR = !!this.shadowRoot;
+        this.state = JSON.parse(this.dataset.state || '{}');
+      }
+
+      connectedCallback() {
+        log(`app-card#${this.state.id} connected (SSR: ${this._isSSR})`);
+        this.hydrate();
+      }
+
+      hydrate() {
+        const incBtn = this.shadowRoot.querySelector('.btn-inc');
+        const decBtn = this.shadowRoot.querySelector('.btn-dec');
+
+        incBtn?.addEventListener('click', () => {
+          this.state.count++;
+          this.updateDisplay();
+        });
+
+        decBtn?.addEventListener('click', () => {
+          this.state.count--;
+          this.updateDisplay();
+        });
+
+        log(`app-card#${this.state.id} hydrated`);
+      }
+
+      updateDisplay() {
+        const countEl = this.shadowRoot.querySelector('.count');
+        if (countEl) countEl.textContent = this.state.count;
+      }
+    }
+    customElements.define('app-card', AppCard);
+
+    // Level 1: Sidebar
+    class AppSidebar extends HTMLElement {
+      constructor() {
+        super();
+        this._isSSR = !!this.shadowRoot;
+        this.state = JSON.parse(this.dataset.state || '{}');
+      }
+
+      connectedCallback() {
+        log(`app-sidebar connected (SSR: ${this._isSSR})`);
+        this.hydrate();
+      }
+
+      hydrate() {
+        const items = this.shadowRoot.querySelectorAll('.nav-item');
+        items.forEach((item, index) => {
+          item.addEventListener('click', () => {
+            items.forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+            this.state.active = index;
+            // 親に通知
+            this.dispatchEvent(new CustomEvent('navigate', {
+              detail: { index, name: this.state.items[index] },
+              bubbles: true,
+              composed: true
+            }));
+          });
+        });
+
+        log(`app-sidebar hydrated`);
+      }
+    }
+    customElements.define('app-sidebar', AppSidebar);
+
+    // Level 1: Main
+    class AppMain extends HTMLElement {
+      constructor() {
+        super();
+        this._isSSR = !!this.shadowRoot;
+        this.state = JSON.parse(this.dataset.state || '{}');
+      }
+
+      connectedCallback() {
+        log(`app-main connected (SSR: ${this._isSSR})`);
+        log(`app-main hydrated`);
+      }
+    }
+    customElements.define('app-main', AppMain);
+
+    // Level 0: Root
+    class AppRoot extends HTMLElement {
+      constructor() {
+        super();
+        this._isSSR = !!this.shadowRoot;
+        this.state = JSON.parse(this.dataset.state || '{}');
+      }
+
+      connectedCallback() {
+        log(`app-root connected (SSR: ${this._isSSR})`);
+
+        // 子コンポーネントからのイベントを受信
+        this.addEventListener('navigate', (e) => {
+          log(`app-root received navigate: ${e.detail.name}`);
+        });
+
+        log(`app-root hydrated`);
+      }
+    }
+    customElements.define('app-root', AppRoot);
+
+    // ========================================
+    // CSS読み込み状況確認
+    // ========================================
+    setTimeout(() => {
+      const status = [];
+
+      // Performance APIでCSSリクエストを確認
+      const entries = performance.getEntriesByType('resource');
+      const cssEntries = entries.filter(e => e.name.includes('shared.css'));
+
+      status.push(`=== CSS リクエスト状況 ===`);
+      status.push(`shared.css への HTTP リクエスト数: ${cssEntries.length}`);
+
+      if (cssEntries.length > 0) {
+        cssEntries.forEach((e, i) => {
+          status.push(`  [${i + 1}] ${e.name}`);
+          status.push(`      duration: ${e.duration.toFixed(2)}ms`);
+          status.push(`      transferSize: ${e.transferSize} bytes`);
+        });
+      }
+
+      status.push('');
+      status.push(`=== Shadow DOM 内の <link> 要素数 ===`);
+
+      // 各Shadow DOM内のlink要素をカウント
+      let totalLinks = 0;
+      const countLinks = (root, depth = 0) => {
+        const links = root.querySelectorAll('link[rel="stylesheet"]');
+        links.forEach(link => {
+          status.push(`${'  '.repeat(depth)}${root.host?.tagName || 'document'}: ${link.href}`);
+          totalLinks++;
+        });
+        // 子のShadow DOMも探索
+        root.querySelectorAll('*').forEach(el => {
+          if (el.shadowRoot) {
+            countLinks(el.shadowRoot, depth + 1);
+          }
+        });
+      };
+
+      document.querySelectorAll('*').forEach(el => {
+        if (el.shadowRoot) {
+          countLinks(el.shadowRoot, 0);
+        }
+      });
+
+      status.push('');
+      status.push(`合計 <link> 要素: ${totalLinks}個`);
+      status.push(`実際の HTTP リクエスト: ${cssEntries.length}回`);
+      status.push('');
+      status.push(cssEntries.length <= 1
+        ? '✓ ブラウザキャッシュが効いています'
+        : '✗ キャッシュが効いていない可能性があります');
+
+      document.getElementById('css-status').textContent = status.join('\n');
+    }, 500);
+  </script>
+</body>
+</html>

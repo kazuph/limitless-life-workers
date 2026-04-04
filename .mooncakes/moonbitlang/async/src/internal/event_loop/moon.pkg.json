@@ -1,0 +1,29 @@
+{
+  "import": [
+    "moonbitlang/async/os_error",
+    "moonbitlang/async/internal/coroutine",
+    "moonbitlang/async/internal/fd_util",
+    "moonbitlang/async/internal/c_buffer",
+    "moonbitlang/async/internal/os_string",
+    "moonbitlang/async/internal/time"
+  ],
+  "wbtest-import": [
+    "moonbitlang/async"
+  ],
+  "test-import": [
+    "moonbitlang/async",
+    "moonbitlang/async/pipe",
+    "moonbitlang/async/io"
+  ],
+  "targets": {
+    "event_loop.mbt": [ "native" ],
+    "network.mbt": [ "native" ],
+    "fs.mbt": [ "native" ],
+    "stdio.mbt": [ "native" ],
+    "poll.mbt": [ "native" ],
+    "thread_pool.mbt": [ "native" ],
+    "timer.mbt": [ "native" ],
+    "event_loop.js.mbt": [ "js" ]
+  },
+  "native-stub": [ "poll.c", "thread_pool.c", "misc_stub.c" ]
+}

@@ -1,0 +1,9 @@
+packages:
+  - "js/*"
+  - "js/luna/examples"
+  - "js/luna/examples_preact"
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

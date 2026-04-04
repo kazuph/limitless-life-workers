@@ -1,0 +1,120 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "//#build:moon": {
+      "inputs": [
+        "src/**/*.mbt",
+        "moon.mod.json",
+        "**/moon.pkg.json"
+      ],
+      "outputs": [
+        "target/js/release/build/**"
+      ]
+    },
+    "//#build:loader": {
+      "dependsOn": ["//#build:moon"],
+      "inputs": [
+        "js/loader/src/**",
+        "rolldown.config.mjs",
+        "target/js/release/build/**"
+      ],
+      "outputs": [
+        "js/loader/dist/**"
+      ]
+    },
+    "//#build:sol": {
+      "dependsOn": ["//#build:moon"],
+      "inputs": [
+        "js/sol/src/**",
+        "target/js/release/build/**"
+      ],
+      "outputs": [
+        "js/sol/dist/**"
+      ]
+    },
+    "//#lint:doc": {
+      "dependsOn": ["//#build:moon", "//#build:sol"],
+      "inputs": [
+        "website/**",
+        "target/js/release/build/**"
+      ],
+      "outputs": [],
+      "cache": false
+    },
+    "//#build:doc": {
+      "dependsOn": ["//#build:moon", "//#build:sol", "//#lint:doc"],
+      "inputs": [
+        "website/**",
+        "demo-src/**",
+        "target/js/release/build/**"
+      ],
+      "outputs": [
+        "website/dist-docs/**"
+      ],
+      "cache": false
+    },
+    "//#deploy:doc": {
+      "dependsOn": ["//#build:doc"],
+      "cache": false
+    },
+    "build": {
+      "dependsOn": ["^build", "//#build:moon", "//#build:loader"],
+      "outputs": ["dist/**"]
+    },
+    "//#test:moonbit": {
+      "dependsOn": ["//#build:moon"],
+      "inputs": [
+        "src/**/*.mbt",
+        "moon.mod.json",
+        "**/moon.pkg.json"
+      ],
+      "outputs": []
+    },
+    "//#test:ts": {
+      "inputs": [
+        "js/**/*.ts",
+        "tsconfig.json"
+      ],
+      "outputs": []
+    },
+    "//#test:vitest": {
+      "dependsOn": ["//#build:moon", "//#build:loader"],
+      "inputs": [
+        "js/**/*.ts",
+        "js/**/*.test.ts",
+        "vitest.config.ts"
+      ],
+      "outputs": []
+    },
+    "//#test:browser": {
+      "dependsOn": ["//#build:moon", "//#build:loader"],
+      "inputs": [
+        "js/**/*.ts",
+        "js/**/*.test.ts",
+        "vitest.browser.config.ts"
+      ],
+      "outputs": []
+    },
+    "//#test:e2e": {
+      "dependsOn": ["//#build:moon", "//#build:loader"],
+      "inputs": [
+        "e2e/**/*.ts",
+        "e2e/**/*.mts",
+        "src/**/*.mbt"
+      ],
+      "outputs": [],
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "check": {
+      "cache": false
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

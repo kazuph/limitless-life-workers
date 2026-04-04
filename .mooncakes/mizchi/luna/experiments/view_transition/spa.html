@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPA View Transition Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+    }
+
+    nav {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem 2rem;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    nav button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      background: #eee;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+
+    nav button:hover {
+      background: #ddd;
+    }
+
+    nav button.active {
+      background: #3498db;
+      color: white;
+    }
+
+    main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Page content container */
+    #page-content {
+      view-transition-name: page-content;
+    }
+
+    .page-title {
+      font-size: 2.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+
+    .card-image {
+      width: 100%;
+      height: 150px;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      view-transition-name: card-image;
+    }
+
+    .card p {
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .item {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* View Transition Animations */
+
+    /* Crossfade for page content */
+    ::view-transition-old(page-content) {
+      animation: fade-out 0.2s ease-out forwards;
+    }
+
+    ::view-transition-new(page-content) {
+      animation: fade-in 0.2s ease-out 0.1s forwards;
+      opacity: 0;
+    }
+
+    ::view-transition-image-pair(page-content) {
+      isolation: auto;
+    }
+
+    /* Card image transition */
+    ::view-transition-old(card-image) {
+      animation: scale-out 0.3s ease-out forwards;
+    }
+
+    ::view-transition-new(card-image) {
+      animation: scale-in 0.3s ease-out forwards;
+    }
+
+    @keyframes fade-out {
+      to { opacity: 0; }
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; }
+    }
+
+    @keyframes scale-out {
+      to {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+    }
+
+    @keyframes scale-in {
+      from {
+        opacity: 0;
+        transform: scale(1.05);
+      }
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      ::view-transition-group(*),
+      ::view-transition-old(*),
+      ::view-transition-new(*) {
+        animation: none !important;
+      }
+    }
+
+    /* Debug info */
+    #debug {
+      position: fixed;
+      bottom: 1rem;
+      left: 1rem;
+      padding: 0.5rem 1rem;
+      background: rgba(0,0,0,0.8);
+      color: #0f0;
+      font-family: monospace;
+      font-size: 0.75rem;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <button data-page="home" class="active">Home</button>
+    <button data-page="foo">Foo</button>
+    <button data-page="bar">Bar</button>
+  </nav>
+
+  <main>
+    <div id="page-content">
+      <!-- Content will be rendered here -->
+    </div>
+  </main>
+
+  <div id="debug">Ready</div>
+
+  <script>
+    // Page data
+    const pages = {
+      home: {
+        title: 'Home Page',
+        color: '#3498db',
+        content: `
+          <p>Welcome to the SPA View Transition demo.</p>
+          <p>Click navigation buttons to see client-side transitions.</p>
+        `,
+        items: ['Feature 1', 'Feature 2', 'Feature 3']
+      },
+      foo: {
+        title: 'Foo Page',
+        color: '#e74c3c',
+        content: `
+          <p>This is the Foo page.</p>
+          <p>Uses document.startViewTransition() for SPA navigation.</p>
+        `,
+        items: ['Foo Item A', 'Foo Item B']
+      },
+      bar: {
+        title: 'Bar Page',
+        color: '#2ecc71',
+        content: `
+          <p>This is the Bar page.</p>
+          <p>The card image has its own view-transition-name.</p>
+        `,
+        items: ['Bar Item X', 'Bar Item Y', 'Bar Item Z', 'Bar Item W']
+      }
+    };
+
+    let currentPage = 'home';
+    const pageContent = document.getElementById('page-content');
+    const debug = document.getElementById('debug');
+
+    // Render page content
+    function renderPage(pageId) {
+      const page = pages[pageId];
+      pageContent.innerHTML = `
+        <h1 class="page-title">${page.title}</h1>
+        <div class="card">
+          <div class="card-image" style="background-color: ${page.color};"></div>
+          ${page.content}
+        </div>
+        <div class="items-list">
+          ${page.items.map(item => `<div class="item">${item}</div>`).join('')}
+        </div>
+      `;
+
+      // Update nav active state
+      document.querySelectorAll('nav button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.page === pageId);
+      });
+
+      currentPage = pageId;
+    }
+
+    // Navigate with view transition
+    function navigateTo(pageId) {
+      if (pageId === currentPage) return;
+
+      debug.textContent = `Transitioning to: ${pageId}`;
+
+      if (!document.startViewTransition) {
+        // Fallback for browsers without support
+        debug.textContent = 'No View Transition API - instant swap';
+        renderPage(pageId);
+        return;
+      }
+
+      const transition = document.startViewTransition(() => {
+        renderPage(pageId);
+      });
+
+      transition.ready.then(() => {
+        debug.textContent = `Transition ready: ${pageId}`;
+      });
+
+      transition.finished.then(() => {
+        debug.textContent = `Transition complete: ${pageId}`;
+      });
+    }
+
+    // Event listeners
+    document.querySelectorAll('nav button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        navigateTo(btn.dataset.page);
+      });
+    });
+
+    // Initial render
+    renderPage('home');
+    debug.textContent = 'Initial render complete';
+  </script>
+</body>
+</html>

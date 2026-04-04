@@ -1,0 +1,7 @@
+{
+  "import": [
+    "mizchi/jsonschema/types",
+    "mizchi/jsonschema/validate",
+    "mizchi/jsonschema/parser"
+  ]
+}

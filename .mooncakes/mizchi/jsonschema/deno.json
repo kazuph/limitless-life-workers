@@ -1,0 +1,5 @@
+{
+  "test": {
+    "exclude": ["examples/**", "tests/fixtures/**", "target"]
+  }
+}

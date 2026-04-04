@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bar - View Transition Demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <nav>
+    <a href="index.html" data-sol-direction="backwards">Home</a>
+    <a href="foo.html" data-sol-direction="backwards">Foo</a>
+    <a href="bar.html" class="active">Bar</a>
+    <a href="sub/deep.html" data-sol-prefetch>Deep (sub/)</a>
+  </nav>
+
+  <main>
+    <h1 class="page-title">Bar Page</h1>
+    <div class="card">
+      <div class="card-image" style="background-color: #2ecc71;"></div>
+      <p>This is the Bar page.</p>
+      <p>Try navigating between pages to see the transition effects.</p>
+    </div>
+
+    <div class="content-section">
+      <h2>Bar Features</h2>
+      <ul>
+        <li>Smooth page transitions</li>
+        <li>Individual element animations</li>
+        <li>Works with browser back/forward</li>
+      </ul>
+    </div>
+
+    <div class="feature-grid">
+      <a href="index.html" class="feature-item">
+        <div class="feature-icon" style="background-color: #3498db;">H</div>
+        <span>Back to Home</span>
+      </a>
+      <a href="foo.html" class="feature-item">
+        <div class="feature-icon" style="background-color: #e74c3c;">F</div>
+        <span>Go to Foo</span>
+      </a>
+    </div>
+  </main>
+</body>
+</html>

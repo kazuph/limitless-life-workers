@@ -1,0 +1,10 @@
+{
+  "import": [
+    "mizchi/js",
+    "mizchi/js/builtins/arraybuffer",
+    "mizchi/js/core"
+  ],
+  "test-import": [
+    "moonbitlang/async"
+  ]
+}

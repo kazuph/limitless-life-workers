@@ -1,0 +1,29 @@
+{
+  "import": [
+    "mizchi/jsonschema/types",
+    "mizchi/jsonschema/validate",
+    "mizchi/jsonschema/parser"
+  ],
+  "link": {
+    "js": {
+      "exports": [
+        "from_schema",
+        "validate_schema",
+        "build_validator",
+        "validate",
+        "string_schema",
+        "number_schema",
+        "integer_schema",
+        "boolean_schema",
+        "null_schema",
+        "array_schema",
+        "object_schema",
+        "any_of_schema",
+        "one_of_schema",
+        "const_schema",
+        "any_schema"
+      ],
+      "format": "esm"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "import": [
+    "mizchi/js",
+    "mizchi/js/core",
+    "mizchi/js/web/http",
+    "mizchi/npm_typed/better_auth"
+  ],
+  "test-import": [
+    "moonbitlang/async"
+  ]
+}
