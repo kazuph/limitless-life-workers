@@ -311,8 +311,8 @@ extern "js" fn ffi_register_api_routes(app : @router.App) -> Unit =
   #|         return c.json({ ok: false, error: 'No text in Gemini response' }, 500)
   #|       }
   #|
-  #|       // Sanitize JSON by removing control characters except allowed ones
-  #|       textContent = textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+  #|       // Sanitize JSON by removing all control characters (including newlines/tabs)
+  #|       textContent = textContent.replace(/[\x00-\x1F\x7F]/g, '')
   #|
   #|       let insights = JSON.parse(textContent)
   #|

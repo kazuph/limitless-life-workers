@@ -38,19 +38,36 @@ app.get('/robots.txt', (c) => c.text('User-agent: *\nDisallow: /', 200, { 'Conte
 app.use('*', withDb())
 
 // Basic auth
-app.use('*', basicAuth({
-  verifyUser: async (username, password, c) => {
-    const { BASIC_USER, BASIC_PASS } = c.env
-    const host = c.req.header('host') || ''
-    if (host.includes('localhost') || host.includes('127.0.0.1')) return true
-    if (!BASIC_USER || !BASIC_PASS) return true
-    return username === BASIC_USER && password === BASIC_PASS
-  },
-  unauthorizedResponse: (c) => c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Basic realm="life-log-app"' })
-}))
+app.use('*', async (c, next) => {
+  const { BASIC_USER, BASIC_PASS } = c.env
+  const host = c.req.header('host') || ''
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    await next()
+    return
+  }
+  if (!BASIC_USER || !BASIC_PASS) {
+    await next()
+    return
+  }
+  return basicAuth({
+    verifyUser: async (username, password) => username === BASIC_USER && password === BASIC_PASS,
+    unauthorizedResponse: (c) => c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Basic realm="life-log-app"' })
+  })(c, next)
+})
 
 // Configure MoonBit routes (API + SSR)
 configure_app(app)
+
+// Manual cron trigger (Basic Auth protected)
+app.post('/api/cron', async (c) => {
+  const scheduled = get_scheduled_handler()
+  const ctx = {
+    waitUntil: (p: Promise<unknown>) => p,
+    passThroughOnException: () => {}
+  }
+  await scheduled({} as any, c.env as any, ctx as any)
+  return c.json({ ok: true })
+})
 
 // Fetch handler
 const fetchHandler: ExportedHandler<Env>['fetch'] = (req, env, ctx) => app.fetch(req, env, ctx)

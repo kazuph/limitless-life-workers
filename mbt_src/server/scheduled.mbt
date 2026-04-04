@@ -219,7 +219,7 @@ extern "js" fn ffi_sched_post_slack(
   #| async (env, insights, header) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   return await toPromise(services.post_insights_to_slack, env.SLACK_BOT_TOKEN, undefined, insights, header ?? undefined)
+  #|   return await toPromise(services.post_insights_to_slack, env.SLACK_BOT_TOKEN, env.SLACK_CHANNEL, insights, header ?? undefined)
   #| }
 
 ///|
@@ -232,7 +232,7 @@ extern "js" fn ffi_sched_post_error(
   #| async (env, errorMessage, context) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   await toPromise(services.post_error_to_slack, env.SLACK_BOT_TOKEN, undefined, errorMessage, context)
+  #|   await toPromise(services.post_error_to_slack, env.SLACK_BOT_TOKEN, env.SLACK_CHANNEL, errorMessage, context)
   #| }
 
 ///|
@@ -241,11 +241,11 @@ extern "js" fn ffi_sched_post_warning(
   env : @core.Any,
   message : String,
   context : String
-) -> @js.Promise[Unit] =
+) -> @js.Promise[Bool] =
   #| async (env, message, context) => {
   #|   const toPromise = (fn, ...args) => new Promise((resolve, reject) => fn(...args, resolve, reject))
   #|   const services = await import('../services/services.js')
-  #|   await toPromise(services.post_warning_to_slack, env.SLACK_BOT_TOKEN, undefined, message, context)
+  #|   return await toPromise(services.post_warning_to_slack, env.SLACK_BOT_TOKEN, env.SLACK_CHANNEL, message, context)
   #| }
 
 ///|
@@ -465,10 +465,6 @@ async fn maybe_warn_stale_sync(
   stats_processed : Int,
   last_updated_before : String?
 ) -> Unit {
-  if stats_processed == 0 {
-    return
-  }
-
   let last_updated_after = ffi_sched_get_state(db, last_updated_at_key).wait()
 
   // Check if we recently warned
@@ -528,11 +524,13 @@ async fn maybe_warn_stale_sync(
     "[Limitless] Stale sync detected, sending Slack warning: " + age_text,
   )
 
-  ffi_sched_post_warning(
-    env,
-    "Limitless sync is not fetching new data. " + age_text,
-    "Limitless Sync",
-  ).wait()
+  ignore(
+    ffi_sched_post_warning(
+      env,
+      "Limitless sync is not fetching new data. " + age_text,
+      "Limitless Sync",
+    ).wait(),
+  )
 
   ffi_sched_upsert_state(db, last_sync_warning_key, ffi_sched_now()).wait()
 }
@@ -691,6 +689,7 @@ pub async fn handle_scheduled(env : @core.Any, _ctx : @core.Any) -> Unit {
     }
   }
   ignore(daily_result)
+
 }
 
 ///|
